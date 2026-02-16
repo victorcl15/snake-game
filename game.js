@@ -1,5 +1,6 @@
 // ============================================================
-// SNAKE HUNT — Enhanced Gameplay Engine
+// SNAKE HUNT — Enhanced Gameplay Engine v2
+// Fixed collision bugs + enhanced gameplay + more satisfaction
 // ============================================================
 
 const CONFIG = {
@@ -20,6 +21,9 @@ const CONFIG = {
     screenShake: true,
     trailEnabled: true,
     comboWindow: 2000,
+    mouseFleeRadius: 4,     // How close before mice start fleeing
+    mouseFleeChance: 0.6,   // Chance to flee vs random when near snake
+    spawnSafeRadius: 3,     // Min distance from head when spawning
 };
 
 // ============================================================
@@ -37,6 +41,7 @@ function easeOutBack(t) {
     return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 }
 function randomRange(min, max) { return Math.random() * (max - min) + min; }
+function dist(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y); }
 
 // ============================================================
 // Enhanced Snake with Input Buffering & Interpolation
@@ -121,6 +126,18 @@ class Snake {
 
     getHead() { return this.body[0]; }
 
+    // Get the position the head is moving TOWARD (next tick)
+    getNextHeadPos() {
+        const effectiveDir = this.inputQueue.length > 0 ? this.inputQueue[0] : this.nextDirection;
+        // Validate it's not opposite
+        const dir = (effectiveDir.x === -this.direction.x && effectiveDir.y === -this.direction.y)
+            ? this.direction : effectiveDir;
+        return {
+            x: this.body[0].x + dir.x,
+            y: this.body[0].y + dir.y
+        };
+    }
+
     getInterpolatedBody(t) {
         const smoothT = easeOutCubic(Math.min(t, 1));
         return this.body.map((seg, i) => {
@@ -134,13 +151,13 @@ class Snake {
 }
 
 // ============================================================
-// Enhanced Mouse with Smooth Movement
+// Enhanced Mouse with Smooth Movement + Flee AI
 // ============================================================
 class Mouse {
-    constructor(gridSize, type, avoidPositions = []) {
+    constructor(gridSize, type, avoidPositions = [], safeRadius = 3, snakeHead = null) {
         this.gridSize = gridSize;
         this.type = type;
-        this.respawn(avoidPositions);
+        this.respawn(avoidPositions, safeRadius, snakeHead);
         this.moveTimer = 0;
         this.moveInterval = 500 / type.speed;
         this.prevX = this.x;
@@ -151,9 +168,11 @@ class Mouse {
         this.scale = 0;
         this.spawnTimer = 0;
         this.tailAngle = 0;
+        this.scared = false; // Visual indicator when fleeing
+        this.scaredTimer = 0;
     }
 
-    respawn(avoidPositions = []) {
+    respawn(avoidPositions = [], safeRadius = 3, snakeHead = null) {
         let position, attempts = 0;
         do {
             position = {
@@ -161,7 +180,11 @@ class Mouse {
                 y: Math.floor(Math.random() * this.gridSize)
             };
             attempts++;
-        } while (attempts < 100 && this.isPositionOccupied(position, avoidPositions));
+            // Check not on occupied cell AND not too close to snake head
+            const tooClose = snakeHead && dist(position, snakeHead) < safeRadius;
+            const occupied = this.isPositionOccupied(position, avoidPositions);
+            if (!occupied && !tooClose) break;
+        } while (attempts < 200);
 
         this.x = position.x;
         this.y = position.y;
@@ -176,7 +199,7 @@ class Mouse {
         return avoids.some(p => p.x === pos.x && p.y === pos.y);
     }
 
-    update(deltaTime) {
+    update(deltaTime, snakeHead = null) {
         this.moveTimer += deltaTime;
         this.wobble += deltaTime * 0.01 * this.wobbleSpeed;
         this.tailAngle += deltaTime * 0.015;
@@ -187,18 +210,36 @@ class Mouse {
             this.moveProgress = Math.min(1, this.moveProgress + deltaTime / (this.moveInterval * 0.8));
         }
 
+        // Scared decay
+        if (this.scaredTimer > 0) {
+            this.scaredTimer -= deltaTime;
+            this.scared = this.scaredTimer > 0;
+        }
+
         if (this.moveTimer >= this.moveInterval) {
             this.moveTimer = 0;
-            this.move();
+            this.move(snakeHead);
             return true;
         }
         return false;
     }
 
-    move() {
+    move(snakeHead = null) {
         this.prevX = this.x;
         this.prevY = this.y;
         this.moveProgress = 0;
+
+        // Check if snake is nearby — flee behavior
+        let fleeing = false;
+        if (snakeHead && dist({ x: this.x, y: this.y }, snakeHead) <= CONFIG.mouseFleeRadius) {
+            if (Math.random() < CONFIG.mouseFleeChance) {
+                fleeing = true;
+                this.scared = true;
+                this.scaredTimer = 500;
+                this.fleeFrom(snakeHead);
+                return;
+            }
+        }
 
         const newX = this.x + this.direction.x;
         const newY = this.y + this.direction.y;
@@ -208,6 +249,33 @@ class Mouse {
         } else {
             this.x = newX;
             this.y = newY;
+        }
+    }
+
+    fleeFrom(threat) {
+        const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+
+        // Score each direction by how far it goes from the threat
+        const scored = dirs.map(d => {
+            const nx = this.x + d.x;
+            const ny = this.y + d.y;
+            if (nx < 0 || nx >= this.gridSize || ny < 0 || ny >= this.gridSize) {
+                return { dir: d, score: -100 }; // Can't go out of bounds
+            }
+            const distFromThreat = dist({ x: nx, y: ny }, threat);
+            return { dir: d, score: distFromThreat };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+
+        // Pick best escape direction (with some randomness for fun)
+        const best = scored[0].score > 0 ? scored[0] : scored[Math.floor(Math.random() * scored.length)];
+        this.direction = best.dir;
+        const nx = this.x + best.dir.x;
+        const ny = this.y + best.dir.y;
+        if (nx >= 0 && nx < this.gridSize && ny >= 0 && ny < this.gridSize) {
+            this.x = nx;
+            this.y = ny;
         }
     }
 
@@ -222,7 +290,28 @@ class Mouse {
         return { x: lerp(this.prevX, this.x, t), y: lerp(this.prevY, this.y, t) };
     }
 
-    checkCollision(x, y) { return this.x === x && this.y === y; }
+    // FIX: Collision checks BOTH current position AND previous position
+    // to prevent swap-through bug
+    checkCollision(x, y) {
+        return this.x === x && this.y === y;
+    }
+
+    checkSwapCollision(snakePrevHead, snakeNewHead) {
+        // Detect if snake and mouse swapped positions
+        // Snake was at snakePrevHead, moved to snakeNewHead
+        // Mouse was at prevX/prevY, moved to x/y
+        // Swap = snake went to where mouse was AND mouse went to where snake was
+        if (snakeNewHead.x === this.prevX && snakeNewHead.y === this.prevY &&
+            this.x === snakePrevHead.x && this.y === snakePrevHead.y) {
+            return true;
+        }
+        // Also check if they crossed through each other diagonally-adjacent
+        // by checking if the mouse was where the snake head now is
+        if (snakeNewHead.x === this.x && snakeNewHead.y === this.y) {
+            return true;
+        }
+        return false;
+    }
 }
 
 // ============================================================
@@ -319,11 +408,12 @@ class Particle {
 // Score Popup
 // ============================================================
 class ScorePopup {
-    constructor(x, y, text, color) {
+    constructor(x, y, text, color, size = 16) {
         this.x = x;
         this.y = y;
         this.text = text;
         this.color = color;
+        this.size = size;
         this.life = 1;
         this.decay = 0.0012;
         this.vy = -1.5;
@@ -343,10 +433,10 @@ class ScorePopup {
         ctx.globalAlpha = Math.max(0, this.life);
         ctx.translate(this.x, this.y);
         ctx.scale(this.scale, this.scale);
-        ctx.font = 'bold 16px Poppins, sans-serif';
+        ctx.font = `bold ${this.size}px Poppins, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
         ctx.lineWidth = 3;
         ctx.strokeText(this.text, 0, 0);
         ctx.fillStyle = this.color;
@@ -389,7 +479,7 @@ class TrailPoint {
 class ScreenShake {
     constructor() {
         this.intensity = 0;
-        this.decay = 0.92;
+        this.decay = 0.9;
         this.offsetX = 0;
         this.offsetY = 0;
     }
@@ -399,7 +489,7 @@ class ScreenShake {
     }
 
     update() {
-        if (this.intensity > 0.5) {
+        if (this.intensity > 0.3) {
             this.offsetX = (Math.random() - 0.5) * this.intensity;
             this.offsetY = (Math.random() - 0.5) * this.intensity;
             this.intensity *= this.decay;
@@ -408,6 +498,68 @@ class ScreenShake {
             this.offsetX = 0;
             this.offsetY = 0;
         }
+    }
+}
+
+// ============================================================
+// Danger Warning (border flash when close to edge)
+// ============================================================
+class DangerIndicator {
+    constructor() {
+        this.alpha = 0;
+        this.side = null; // 'top', 'bottom', 'left', 'right'
+    }
+
+    update(snakeHead, gridSize) {
+        const margin = 1;
+        this.sides = [];
+        if (snakeHead.y <= margin) this.sides.push('top');
+        if (snakeHead.y >= gridSize - 1 - margin) this.sides.push('bottom');
+        if (snakeHead.x <= margin) this.sides.push('left');
+        if (snakeHead.x >= gridSize - 1 - margin) this.sides.push('right');
+
+        this.alpha = this.sides.length > 0
+            ? 0.15 + Math.sin(Date.now() * 0.008) * 0.08
+            : Math.max(0, this.alpha - 0.02);
+    }
+
+    draw(ctx, canvasW, canvasH) {
+        if (this.alpha <= 0) return;
+        const thickness = 4;
+
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+
+        if (this.sides.includes('top')) {
+            const g = ctx.createLinearGradient(0, 0, 0, 40);
+            g.addColorStop(0, '#f5576c');
+            g.addColorStop(1, 'transparent');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, canvasW, 40);
+        }
+        if (this.sides.includes('bottom')) {
+            const g = ctx.createLinearGradient(0, canvasH, 0, canvasH - 40);
+            g.addColorStop(0, '#f5576c');
+            g.addColorStop(1, 'transparent');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, canvasH - 40, canvasW, 40);
+        }
+        if (this.sides.includes('left')) {
+            const g = ctx.createLinearGradient(0, 0, 40, 0);
+            g.addColorStop(0, '#f5576c');
+            g.addColorStop(1, 'transparent');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, 40, canvasH);
+        }
+        if (this.sides.includes('right')) {
+            const g = ctx.createLinearGradient(canvasW, 0, canvasW - 40, 0);
+            g.addColorStop(0, '#f5576c');
+            g.addColorStop(1, 'transparent');
+            ctx.fillStyle = g;
+            ctx.fillRect(canvasW - 40, 0, 40, canvasH);
+        }
+
+        ctx.restore();
     }
 }
 
@@ -428,6 +580,7 @@ class Game {
         this.scorePopups = [];
         this.trailPoints = [];
         this.screenShake = new ScreenShake();
+        this.dangerIndicator = new DangerIndicator();
         this.pulseRings = [];
 
         this.score = 0;
@@ -445,10 +598,20 @@ class Game {
         this.comboTimer = 0;
         this.maxCombo = 0;
 
+        // Gameplay stats
+        this.miceEaten = 0;
+        this.playTime = 0;
+
         // Death animation
         this.deathTimer = 0;
         this.deathDuration = 1500;
         this.deathExplosionDone = false;
+
+        // Speed lines effect when moving fast
+        this.speedLines = [];
+
+        // Near-miss tracking (snake passes adjacent to mouse = cool)
+        this.nearMissTimer = 0;
 
         // Background stars
         this.bgStars = [];
@@ -461,6 +624,9 @@ class Game {
                 opacity: randomRange(0.1, 0.5)
             });
         }
+
+        // Head glow trail (more intense trail behind head)
+        this.headTrail = [];
 
         this.setupEventListeners();
         this.updateUI();
@@ -529,6 +695,8 @@ class Game {
         this.scorePopups = [];
         this.trailPoints = [];
         this.pulseRings = [];
+        this.speedLines = [];
+        this.headTrail = [];
         this.score = 0;
         this.level = 1;
         this.speed = CONFIG.initialSpeed;
@@ -537,8 +705,11 @@ class Game {
         this.combo = 0;
         this.comboTimer = 0;
         this.maxCombo = 0;
+        this.miceEaten = 0;
+        this.playTime = 0;
         this.deathTimer = 0;
         this.deathExplosionDone = false;
+        this.nearMissTimer = 0;
 
         this.spawnMouse();
         this.spawnMouse();
@@ -583,7 +754,8 @@ class Game {
             if (rnd <= 0) { selectedType = type; break; }
         }
         const avoid = [...this.snake.body, ...this.mice.map(m => ({ x: m.x, y: m.y }))];
-        this.mice.push(new Mouse(CONFIG.gridSize, selectedType, avoid));
+        const head = this.snake.getHead();
+        this.mice.push(new Mouse(CONFIG.gridSize, selectedType, avoid, CONFIG.spawnSafeRadius, head));
     }
 
     // ========================================================
@@ -607,6 +779,7 @@ class Game {
 
     update(deltaTime) {
         this.snakeTimer += deltaTime;
+        this.playTime += deltaTime;
 
         // Combo timer
         if (this.combo > 0) {
@@ -617,8 +790,13 @@ class Game {
             }
         }
 
-        // Update mice
-        this.mice.forEach(mouse => mouse.update(deltaTime));
+        // Near miss timer
+        if (this.nearMissTimer > 0) this.nearMissTimer -= deltaTime;
+
+        const snakeHead = this.snake.getHead();
+
+        // Update mice with snake head for flee behavior
+        this.mice.forEach(mouse => mouse.update(deltaTime, snakeHead));
 
         // Snake interpolation
         if (this.snake.moveProgress < 1) {
@@ -635,11 +813,20 @@ class Game {
         if (this.snakeTimer >= this.speed) {
             this.snakeTimer -= this.speed;
 
+            const prevHead = { ...this.snake.getHead() };
+
             // Trail
             if (CONFIG.trailEnabled) {
                 const tail = this.snake.body[this.snake.body.length - 1];
                 this.trailPoints.push(new TrailPoint(tail.x, tail.y, '#667eea'));
             }
+
+            // Head glow trail
+            this.headTrail.push({
+                x: prevHead.x, y: prevHead.y,
+                life: 1, color: '#667eea'
+            });
+            if (this.headTrail.length > 8) this.headTrail.shift();
 
             this.snake.move();
 
@@ -648,10 +835,16 @@ class Game {
                 return;
             }
 
-            this.handleMouseCollisions();
+            // FIX: Enhanced collision detection after snake move
+            // Check both normal collision AND swap-through
+            const newHead = this.snake.getHead();
+            this.handleMouseCollisionsEnhanced(prevHead, newHead);
+
+            // Check near-misses for satisfaction
+            this.checkNearMiss(newHead);
         }
 
-        // Check collisions from mouse movement too
+        // Also check standard collisions every frame (mouse moved into head)
         this.handleMouseCollisions();
 
         // Spawn mice
@@ -661,46 +854,149 @@ class Game {
             this.spawnMouse();
         }
 
+        // Speed lines at higher levels
+        if (this.level >= 3 && Math.random() < 0.15) {
+            this.speedLines.push({
+                x: randomRange(0, this.canvas.width),
+                y: randomRange(0, this.canvas.height),
+                length: randomRange(10, 30),
+                speed: randomRange(3, 8),
+                dir: this.snake.direction,
+                life: 1
+            });
+        }
+
+        // Danger indicator
+        this.dangerIndicator.update(this.snake.getHead(), CONFIG.gridSize);
+
         // Update effects
         this.updateEffects(deltaTime);
     }
 
+    // Standard collision: head position === mouse position
     handleMouseCollisions() {
         const head = this.snake.getHead();
         for (let i = this.mice.length - 1; i >= 0; i--) {
             if (this.mice[i].checkCollision(head.x, head.y)) {
-                const mouse = this.mice[i];
+                this.eatMouse(i);
+            }
+        }
+    }
 
-                // Combo
-                this.combo++;
-                this.comboTimer = CONFIG.comboWindow;
-                this.maxCombo = Math.max(this.maxCombo, this.combo);
-                const multiplier = Math.min(this.combo, 5);
-                const points = mouse.type.points * multiplier;
-                this.score += points;
-                this.snake.grow(mouse.type.growth);
+    // FIX: Enhanced collision that also detects swap-through
+    handleMouseCollisionsEnhanced(prevHead, newHead) {
+        for (let i = this.mice.length - 1; i >= 0; i--) {
+            const mouse = this.mice[i];
+            // Check normal overlap
+            if (mouse.checkCollision(newHead.x, newHead.y)) {
+                this.eatMouse(i);
+                continue;
+            }
+            // Check swap-through: did snake and mouse swap places?
+            if (mouse.checkSwapCollision(prevHead, newHead)) {
+                this.eatMouse(i);
+                continue;
+            }
+            // Check path-through: was the mouse on the cell the snake just passed through?
+            // (mouse.prevX/prevY was where head is now, meaning they crossed)
+            if (mouse.prevX === newHead.x && mouse.prevY === newHead.y) {
+                this.eatMouse(i);
+                continue;
+            }
+        }
+    }
 
-                // Effects
-                const px = (head.x + 0.5) * CONFIG.cellSize;
-                const py = (head.y + 0.5) * CONFIG.cellSize;
-                this.createEatExplosion(px, py, mouse.type.color, mouse.type.glowColor);
+    eatMouse(mouseIndex) {
+        const mouse = this.mice[mouseIndex];
+        const head = this.snake.getHead();
 
-                let popText = `+${points}`;
-                if (multiplier > 1) popText += ` x${multiplier}`;
-                this.scorePopups.push(new ScorePopup(px, py - 10, popText, mouse.type.color));
-                this.pulseRings.push({ x: px, y: py, radius: 0, maxRadius: 60, life: 1, color: mouse.type.color });
+        // Combo
+        this.combo++;
+        this.comboTimer = CONFIG.comboWindow;
+        this.maxCombo = Math.max(this.maxCombo, this.combo);
+        const multiplier = Math.min(this.combo, 5);
+        const points = mouse.type.points * multiplier;
+        this.score += points;
+        this.miceEaten++;
+        this.snake.grow(mouse.type.growth);
 
-                if (CONFIG.screenShake) {
-                    const shakeAmt = mouse.type.name === 'gold' ? 8 : mouse.type.name === 'brown' ? 5 : 3;
-                    this.screenShake.trigger(shakeAmt);
+        // Effects at mouse position (use mouse pos for more accurate visual)
+        const effectX = mouse.x;
+        const effectY = mouse.y;
+        const px = (effectX + 0.5) * CONFIG.cellSize;
+        const py = (effectY + 0.5) * CONFIG.cellSize;
+
+        this.createEatExplosion(px, py, mouse.type.color, mouse.type.glowColor);
+
+        // Score popup
+        let popText = `+${points}`;
+        if (multiplier > 1) popText += ` x${multiplier}`;
+        const popSize = multiplier >= 4 ? 22 : multiplier >= 2 ? 18 : 16;
+        this.scorePopups.push(new ScorePopup(px, py - 10, popText, mouse.type.color, popSize));
+
+        // Pulse ring
+        const ringSize = mouse.type.name === 'gold' ? 80 : mouse.type.name === 'brown' ? 65 : 50;
+        this.pulseRings.push({ x: px, y: py, radius: 0, maxRadius: ringSize, life: 1, color: mouse.type.color });
+
+        // Screen shake
+        if (CONFIG.screenShake) {
+            const shakeAmt = mouse.type.name === 'gold' ? 10 : mouse.type.name === 'brown' ? 6 : 3;
+            this.screenShake.trigger(shakeAmt);
+        }
+
+        // Bonus: slow-motion-like effect for gold catches (brief speed boost feeling)
+        if (mouse.type.name === 'gold') {
+            // Extra burst of particles for gold
+            for (let k = 0; k < 15; k++) {
+                const angle = randomRange(0, Math.PI * 2);
+                this.particles.push(new Particle(px, py, {
+                    vx: Math.cos(angle) * randomRange(2, 7),
+                    vy: Math.sin(angle) * randomRange(2, 7),
+                    color: k % 2 === 0 ? '#ffd700' : '#fff',
+                    size: randomRange(3, 8),
+                    maxLife: randomRange(0.5, 1.2),
+                    gravity: -0.02,
+                    friction: 0.96,
+                    type: 'star'
+                }));
+            }
+            // Double ring
+            this.pulseRings.push({ x: px, y: py, radius: 0, maxRadius: 120, life: 1, color: '#ffd700' });
+        }
+
+        this.mice.splice(mouseIndex, 1);
+
+        if (this.score >= this.level * CONFIG.levelUpScore) {
+            this.levelUp();
+        }
+        this.updateUI();
+    }
+
+    checkNearMiss(head) {
+        if (this.nearMissTimer > 0) return;
+        for (const mouse of this.mice) {
+            const d = dist(head, { x: mouse.x, y: mouse.y });
+            if (d === 1) {
+                // Adjacent but didn't eat — near miss!
+                this.nearMissTimer = 500;
+                const px = (mouse.x + 0.5) * CONFIG.cellSize;
+                const py = (mouse.y + 0.5) * CONFIG.cellSize;
+                this.scorePopups.push(new ScorePopup(px, py - 15, '¡CASI!', '#f5576c', 12));
+
+                // Small particle burst
+                for (let i = 0; i < 5; i++) {
+                    this.particles.push(new Particle(px, py, {
+                        vx: (Math.random() - 0.5) * 3,
+                        vy: (Math.random() - 0.5) * 3,
+                        color: '#f5576c',
+                        size: randomRange(1, 3),
+                        maxLife: 0.3,
+                        gravity: 0,
+                        friction: 0.95,
+                        type: 'circle'
+                    }));
                 }
-
-                this.mice.splice(i, 1);
-
-                if (this.score >= this.level * CONFIG.levelUpScore) {
-                    this.levelUp();
-                }
-                this.updateUI();
+                break;
             }
         }
     }
@@ -721,6 +1017,7 @@ class Game {
                 type: types[i % types.length]
             }));
         }
+        // Glow ring
         this.particles.push(new Particle(x, y, {
             vx: 0, vy: 0,
             color: glowColor,
@@ -739,6 +1036,7 @@ class Game {
         this.gameState = 'dying';
         this.deathTimer = 0;
         this.deathExplosionDone = false;
+        this.screenShake.trigger(12);
     }
 
     updateDeathAnimation(deltaTime) {
@@ -758,26 +1056,46 @@ class Game {
                     seg._exploded = true;
                     const px = (seg.x + 0.5) * CONFIG.cellSize;
                     const py = (seg.y + 0.5) * CONFIG.cellSize;
-                    for (let j = 0; j < 8; j++) {
+                    for (let j = 0; j < 10; j++) {
                         const angle = randomRange(0, Math.PI * 2);
-                        const speed = randomRange(1, 4);
+                        const speed = randomRange(1, 5);
                         this.particles.push(new Particle(px, py, {
                             vx: Math.cos(angle) * speed,
                             vy: Math.sin(angle) * speed,
-                            color: j % 2 === 0 ? '#667eea' : '#764ba2',
-                            size: randomRange(2, 5),
-                            maxLife: randomRange(0.5, 1),
+                            color: j % 3 === 0 ? '#fff' : j % 2 === 0 ? '#667eea' : '#764ba2',
+                            size: randomRange(2, 6),
+                            maxLife: randomRange(0.5, 1.2),
                             gravity: 0.08,
                             friction: 0.96,
-                            type: j % 3 === 0 ? 'star' : 'circle'
+                            type: j % 4 === 0 ? 'star' : j % 3 === 0 ? 'spark' : 'circle'
                         }));
                     }
-                    this.screenShake.trigger(3);
+                    this.screenShake.trigger(4);
                 }
             }
 
             if (segmentsToExplode >= this.snake.body.length) {
                 this.deathExplosionDone = true;
+                // Final big explosion at head
+                const headSeg = this.snake.body[0];
+                const hpx = (headSeg.x + 0.5) * CONFIG.cellSize;
+                const hpy = (headSeg.y + 0.5) * CONFIG.cellSize;
+                for (let j = 0; j < 30; j++) {
+                    const angle = randomRange(0, Math.PI * 2);
+                    const speed = randomRange(2, 8);
+                    this.particles.push(new Particle(hpx, hpy, {
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        color: j % 4 === 0 ? '#ffd700' : j % 3 === 0 ? '#f5576c' : j % 2 === 0 ? '#667eea' : '#fff',
+                        size: randomRange(3, 8),
+                        maxLife: randomRange(0.6, 1.5),
+                        gravity: 0.05,
+                        friction: 0.97,
+                        type: j % 3 === 0 ? 'star' : 'circle'
+                    }));
+                }
+                this.pulseRings.push({ x: hpx, y: hpy, radius: 0, maxRadius: 150, life: 1, color: '#f5576c' });
+                this.screenShake.trigger(15);
             }
         }
 
@@ -796,8 +1114,25 @@ class Game {
         const cx = this.canvas.width / 2;
         const cy = this.canvas.height / 2;
         this.pulseRings.push({ x: cx, y: cy, radius: 0, maxRadius: 200, life: 1, color: '#00f2fe' });
-        this.scorePopups.push(new ScorePopup(cx, cy, `¡NIVEL ${this.level}!`, '#00f2fe'));
-        this.screenShake.trigger(6);
+        this.pulseRings.push({ x: cx, y: cy, radius: 0, maxRadius: 250, life: 0.8, color: '#667eea' });
+        this.scorePopups.push(new ScorePopup(cx, cy, `¡NIVEL ${this.level}!`, '#00f2fe', 24));
+        this.screenShake.trigger(8);
+
+        // Level up particle burst
+        for (let i = 0; i < 40; i++) {
+            const angle = (Math.PI * 2 / 40) * i;
+            const speed = randomRange(3, 7);
+            this.particles.push(new Particle(cx, cy, {
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                color: i % 3 === 0 ? '#00f2fe' : i % 2 === 0 ? '#667eea' : '#fff',
+                size: randomRange(3, 6),
+                maxLife: randomRange(0.5, 1),
+                gravity: 0.01,
+                friction: 0.98,
+                type: i % 4 === 0 ? 'star' : 'circle'
+            }));
+        }
     }
 
     gameOver() {
@@ -836,6 +1171,20 @@ class Game {
             r.radius = r.maxRadius * (1 - r.life);
             if (r.life <= 0) this.pulseRings.splice(i, 1);
         }
+        // Speed lines
+        for (let i = this.speedLines.length - 1; i >= 0; i--) {
+            const sl = this.speedLines[i];
+            sl.x += sl.dir.x * sl.speed;
+            sl.y += sl.dir.y * sl.speed;
+            sl.life -= dt * 0.003;
+            if (sl.life <= 0) this.speedLines.splice(i, 1);
+        }
+        // Head trail
+        for (let i = this.headTrail.length - 1; i >= 0; i--) {
+            this.headTrail[i].life -= dt * 0.003;
+            if (this.headTrail[i].life <= 0) this.headTrail.splice(i, 1);
+        }
+
         this.screenShake.update();
         this.bgStars.forEach(s => {
             s.opacity = 0.1 + Math.sin(this.frameTime * 0.001 * s.speed) * 0.2;
@@ -858,6 +1207,30 @@ class Game {
         // Trail
         this.trailPoints.forEach(t => t.draw(ctx, cs));
 
+        // Head glow trail
+        this.headTrail.forEach(ht => {
+            ctx.save();
+            ctx.globalAlpha = ht.life * 0.25;
+            ctx.fillStyle = ht.color;
+            ctx.beginPath();
+            ctx.arc(ht.x * cs + cs / 2, ht.y * cs + cs / 2, cs * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        // Speed lines
+        this.speedLines.forEach(sl => {
+            ctx.save();
+            ctx.globalAlpha = sl.life * 0.15;
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(sl.x, sl.y);
+            ctx.lineTo(sl.x - sl.dir.x * sl.length, sl.y - sl.dir.y * sl.length);
+            ctx.stroke();
+            ctx.restore();
+        });
+
         // Pulse rings
         this.pulseRings.forEach(r => {
             ctx.save();
@@ -876,6 +1249,11 @@ class Game {
         // Snake
         if (this.gameState !== 'dying' || !this.deathExplosionDone) {
             this.renderSnake(ctx, cs);
+        }
+
+        // Danger indicator
+        if (this.gameState === 'playing') {
+            this.dangerIndicator.draw(ctx, this.canvas.width, this.canvas.height);
         }
 
         // Particles
@@ -1071,10 +1449,11 @@ class Game {
             ctx.translate(px, py);
             ctx.scale(scale, scale);
 
-            // Wobble
+            // Wobble (faster when scared)
+            const wobbleMult = mouse.scared ? 3 : 1;
             ctx.translate(
-                Math.sin(mouse.wobble) * 1.5,
-                Math.sin(mouse.wobble * 1.3) * 1
+                Math.sin(mouse.wobble * wobbleMult) * 1.5 * wobbleMult,
+                Math.sin(mouse.wobble * 1.3 * wobbleMult) * 1 * wobbleMult
             );
 
             const bodyR = cs * 0.35;
@@ -1086,6 +1465,17 @@ class Game {
             ctx.ellipse(1, 3, bodyR, bodyR * 0.6, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.globalAlpha = 1;
+
+            // Scared glow (red pulse)
+            if (mouse.scared) {
+                ctx.save();
+                ctx.globalAlpha = 0.25 + Math.sin(this.frameTime * 0.015) * 0.15;
+                ctx.fillStyle = 'rgba(245, 87, 108, 0.5)';
+                ctx.beginPath();
+                ctx.arc(0, 0, bodyR + 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
 
             // Gold glow
             if (mouse.type.name === 'gold') {
@@ -1110,20 +1500,30 @@ class Game {
             ctx.beginPath(); ctx.arc(-bodyR * 0.5, -bodyR * 0.6, earR, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(bodyR * 0.5, -bodyR * 0.6, earR, 0, Math.PI * 2); ctx.fill();
 
-            // Inner ears
-            ctx.fillStyle = '#f9a8d4';
-            ctx.beginPath(); ctx.arc(-bodyR * 0.5, -bodyR * 0.6, earR * 0.6, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(bodyR * 0.5, -bodyR * 0.6, earR * 0.6, 0, Math.PI * 2); ctx.fill();
+            // Inner ears (bigger/redder when scared)
+            ctx.fillStyle = mouse.scared ? '#f87171' : '#f9a8d4';
+            const innerEarScale = mouse.scared ? 0.7 : 0.6;
+            ctx.beginPath(); ctx.arc(-bodyR * 0.5, -bodyR * 0.6, earR * innerEarScale, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(bodyR * 0.5, -bodyR * 0.6, earR * innerEarScale, 0, Math.PI * 2); ctx.fill();
 
-            // Eyes
+            // Eyes (wider when scared)
+            const eyeSize = mouse.scared ? 2.8 : 2;
             ctx.fillStyle = '#1a1a2e';
-            ctx.beginPath(); ctx.arc(-bodyR * 0.25, -bodyR * 0.15, 2, 0, Math.PI * 2); ctx.fill();
-            ctx.beginPath(); ctx.arc(bodyR * 0.25, -bodyR * 0.15, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-bodyR * 0.25, -bodyR * 0.15, eyeSize, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(bodyR * 0.25, -bodyR * 0.15, eyeSize, 0, Math.PI * 2); ctx.fill();
 
             // Eye shine
             ctx.fillStyle = '#fff';
             ctx.beginPath(); ctx.arc(-bodyR * 0.25 + 0.5, -bodyR * 0.15 - 0.5, 0.8, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(bodyR * 0.25 + 0.5, -bodyR * 0.15 - 0.5, 0.8, 0, Math.PI * 2); ctx.fill();
+
+            // Scared sweat drop
+            if (mouse.scared) {
+                ctx.fillStyle = 'rgba(147, 197, 253, 0.8)';
+                ctx.beginPath();
+                ctx.ellipse(bodyR * 0.65, -bodyR * 0.5, 1.5, 2.5, 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
 
             // Nose
             ctx.fillStyle = '#f472b6';
@@ -1137,12 +1537,13 @@ class Game {
             const tsx = -mouse.direction.x * bodyR * 0.7;
             const tsy = -mouse.direction.y * bodyR * 0.7 + bodyR * 0.3;
             ctx.moveTo(tsx, tsy);
-            const tc = Math.sin(mouse.tailAngle) * 5;
+            const tailSpeed = mouse.scared ? 2 : 1;
+            const tc = Math.sin(mouse.tailAngle * tailSpeed) * 5;
             ctx.quadraticCurveTo(
                 tsx - mouse.direction.x * 6 + tc,
                 tsy - mouse.direction.y * 6 + tc,
                 tsx - mouse.direction.x * 10,
-                tsy - mouse.direction.y * 10 + Math.sin(mouse.tailAngle * 1.5) * 4
+                tsy - mouse.direction.y * 10 + Math.sin(mouse.tailAngle * 1.5 * tailSpeed) * 4
             );
             ctx.stroke();
 

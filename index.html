@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Juego de la culebrita con ratones móviles - Una versión moderna del clásico Snake">
+    <title>Snake Hunt - Caza los Ratones</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="game-title">🐍 Snake Hunt</h1>
+            <div class="hud">
+                <div class="stat-box">
+                    <span class="stat-label">Puntos</span>
+                    <span class="stat-value" id="score">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Nivel</span>
+                    <span class="stat-value" id="level">1</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Récord</span>
+                    <span class="stat-value" id="highscore">0</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="game-wrapper">
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- Pantalla de Inicio -->
+            <div class="overlay" id="startScreen">
+                <div class="overlay-content">
+                    <h2 class="overlay-title">🐍 Snake Hunt</h2>
+                    <p class="overlay-subtitle">¡Caza los ratones en movimiento!</p>
+                    
+                    <div class="instructions">
+                        <h3>Cómo Jugar</h3>
+                        <ul>
+                            <li>🎮 Usa <strong>flechas</strong> o <strong>WASD</strong> para moverte</li>
+                            <li>📱 En móvil, <strong>desliza</strong> sobre el canvas</li>
+                            <li>🐭 Caza ratones de diferentes colores:</li>
+                        </ul>
+                        <div class="mouse-types">
+                            <div class="mouse-type">
+                                <span class="mouse-icon gray">🐭</span>
+                                <span>Gris: +10 pts</span>
+                            </div>
+                            <div class="mouse-type">
+                                <span class="mouse-icon brown">🐭</span>
+                                <span>Marrón: +20 pts</span>
+                            </div>
+                            <div class="mouse-type">
+                                <span class="mouse-icon gold">🐭</span>
+                                <span>Dorado: +50 pts</span>
+                            </div>
+                        </div>
+                        <ul>
+                            <li>🔥 ¡Caza rápido para conseguir <strong>combos x5</strong>!</li>
+                            <li>⚠️ Evita chocar con los bordes o contigo mismo</li>
+                            <li>📈 La dificultad aumenta con cada nivel</li>
+                        </ul>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="startBtn">Comenzar Juego</button>
+                </div>
+            </div>
+
+            <!-- Pantalla de Game Over -->
+            <div class="overlay hidden" id="gameOverScreen">
+                <div class="overlay-content">
+                    <h2 class="overlay-title game-over">💀 Game Over</h2>
+                    <div class="final-stats">
+                        <div class="final-stat">
+                            <span class="final-label">Puntuación Final</span>
+                            <span class="final-value" id="finalScore">0</span>
+                        </div>
+                        <div class="final-stat">
+                            <span class="final-label">Nivel Alcanzado</span>
+                            <span class="final-value" id="finalLevel">1</span>
+                        </div>
+                        <div class="final-stat highlight" id="newRecordMsg">
+                            <span class="final-label">🎉 ¡Nuevo Récord!</span>
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="restartBtn">Jugar de Nuevo</button>
+                        <button class="btn btn-secondary" id="menuBtn">Menú Principal</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pantalla de Pausa -->
+            <div class="overlay hidden" id="pauseScreen">
+                <div class="overlay-content">
+                    <h2 class="overlay-title">⏸️ Pausa</h2>
+                    <p class="overlay-subtitle">El juego está pausado</p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="resumeBtn">Continuar</button>
+                        <button class="btn btn-secondary" id="quitBtn">Salir al Menú</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p class="controls-hint">Presiona <kbd>Espacio</kbd> para pausar | <kbd>Flechas</kbd> / <kbd>WASD</kbd> para moverte</p>
+        </footer>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>

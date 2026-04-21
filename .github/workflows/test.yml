@@ -1,0 +1,58 @@
+# ============================================================
+# GitHub Actions - Test Workflow
+# Linting + Unit Tests + Type Checking
+# ============================================================
+
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [ 18.x, 20.x ]
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: cd frontend && npm ci
+
+      - name: Frontend Type Check
+        run: cd frontend && npm run type-check
+
+      - name: Frontend Lint
+        run: cd frontend && npm run lint
+
+      - name: Frontend Unit Tests
+        run: cd frontend && npm run test
+
+      - name: Install Backend Dependencies
+        run: cd backend && npm ci
+
+      - name: Backend Type Check
+        run: cd backend && npm run type-check
+
+      - name: Backend Lint
+        run: cd backend && npm run lint
+
+      - name: Upload Coverage
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          files: ./frontend/coverage/coverage-final.json,./backend/coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella

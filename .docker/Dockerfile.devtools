@@ -1,0 +1,49 @@
+# ============================================================
+# SNAKE GAME 3D - DevTools Dockerfile
+# ESLint + Vitest + Playwright + Development Tools
+# ============================================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install system dependencies for Playwright
+RUN apk add --no-cache \
+    chromium \
+    firefox \
+    dumb-init \
+    curl
+
+# Copy package files (both frontend and backend)
+COPY frontend/package*.json ./frontend/
+COPY backend/package*.json ./backend/
+
+# Install all dependencies (including devDependencies)
+RUN cd frontend && npm ci --frozen-lockfile && \
+    cd ../backend && npm ci --frozen-lockfile && \
+    cd ..
+
+# Copy source code
+COPY frontend/src ./frontend/src
+COPY frontend/vite.config.ts ./frontend/
+COPY frontend/tsconfig.json ./frontend/
+COPY backend/src ./backend/src
+COPY backend/tsconfig.json ./backend/
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001 && \
+    chown -R nodejs:nodejs /app
+
+USER nodejs
+
+# Expose ports for development
+EXPOSE 3000 4000 6006
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:6006/health || exit 1
+
+# Default command - run tests
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["sh", "-c", "echo 'DevTools container running. Run: docker exec <container> npm run test'"]

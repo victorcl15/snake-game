@@ -21,8 +21,8 @@ help:
 	@echo "  make build-devtools      - Build devtools image"
 	@echo ""
 	@echo "Docker Compose:"
-	@echo "  make up                  - Start all services (docker-compose up)"
-	@echo "  make down                - Stop all services (docker-compose down)"
+	@echo "  make up                  - Start all services (docker compose up)"
+	@echo "  make down                - Stop all services (docker compose down)"
 	@echo "  make logs                - View all logs"
 	@echo "  make ps                  - Show running containers"
 	@echo ""
@@ -62,7 +62,7 @@ help:
 # ============================================================
 
 dev:
-	docker-compose up -d
+	docker compose up -d
 
 dev-frontend:
 	cd frontend && npm run dev
@@ -71,7 +71,7 @@ dev-backend:
 	cd backend && npm run dev
 
 dev-db:
-	docker-compose up mongodb -d
+	docker compose up mongodb -d
 
 # ============================================================
 # Building Commands
@@ -94,25 +94,25 @@ build-devtools:
 # ============================================================
 
 up:
-	docker-compose up -d
+	docker compose up -d
 
 down:
-	docker-compose down
+	docker compose down
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 logs-frontend:
-	docker-compose logs -f frontend
+	docker compose logs -f frontend
 
 logs-backend:
-	docker-compose logs -f backend
+	docker compose logs -f backend
 
 logs-db:
-	docker-compose logs -f mongodb
+	docker compose logs -f mongodb
 
 ps:
-	docker-compose ps
+	docker compose ps
 
 # ============================================================
 # Testing Commands
@@ -167,20 +167,20 @@ type-check-backend:
 # ============================================================
 
 db-init:
-	docker-compose exec mongodb mongosh --authenticationDatabase admin -u admin -p admin-password /docker-entrypoint-initdb.d/01-collections.js
+	docker compose exec mongodb mongosh --authenticationDatabase admin -u admin -p admin-password /docker-entrypoint-initdb.d/01-collections.js
 
 db-seed:
-	docker-compose exec mongodb mongosh --authenticationDatabase admin -u admin -p admin-password /docker-entrypoint-initdb.d/03-seed.js
+	docker compose exec mongodb mongosh --authenticationDatabase admin -u admin -p admin-password /docker-entrypoint-initdb.d/03-seed.js
 
 db-shell:
-	docker-compose exec mongodb mongosh --authenticationDatabase admin -u admin -p admin-password snake_game
+	docker compose exec mongodb mongosh --authenticationDatabase admin -u admin -p admin-password snake_game
 
 db-backup:
 	mkdir -p ./backups
-	docker-compose exec mongodb mongodump --authenticationDatabase admin -u admin -p admin-password -d snake_game -o /backups
+	docker compose exec mongodb mongodump --authenticationDatabase admin -u admin -p admin-password -d snake_game -o /backups
 
 db-restore:
-	docker-compose exec mongodb mongorestore --authenticationDatabase admin -u admin -p admin-password /backups
+	docker compose exec mongodb mongorestore --authenticationDatabase admin -u admin -p admin-password /backups
 
 # ============================================================
 # Installation Commands
@@ -201,7 +201,7 @@ env-setup:
 # ============================================================
 
 deploy-prod:
-	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+	docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 	@echo "✅ Production deployment complete"
 
 deploy-frontend:
@@ -219,7 +219,7 @@ clean:
 	@echo "✅ Build artifacts cleaned"
 
 clean-docker:
-	docker-compose down -v
+	docker compose down -v
 	docker volume prune -f
 	@echo "✅ Docker volumes cleaned"
 
@@ -232,7 +232,7 @@ clean-all: clean clean-docker
 
 status:
 	@echo "🐍 Snake Game 3D - Service Status"
-	@docker-compose ps
+	@docker compose ps
 	@echo ""
 	@echo "Frontend URL:  http://localhost:3000"
 	@echo "Backend URL:   http://localhost:4000"

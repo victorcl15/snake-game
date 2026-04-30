@@ -3,14 +3,12 @@
 # Development environment with 6 microservices
 # ============================================================
 
-version: '3.9'
-
 services:
   # ============================================================
   # DATABASE - MongoDB
   # ============================================================
   mongodb:
-    image: mongo:7-alpine
+    image: mongo:6.0
     container_name: snake-game-mongodb
     ports:
       - "27017:27017"
@@ -116,7 +114,7 @@ services:
   # REVERSE PROXY - Nginx
   # ============================================================
   nginx:
-    image: nginx:1.25-alpine
+    image: nginx:1.25
     container_name: snake-game-nginx
     ports:
       - "80:80"

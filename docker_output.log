@@ -1,0 +1,8 @@
+docker compose up -d
+time="2026-04-21T09:23:40-05:00" level=warning msg="/home/victor.calle@IUDIGITAL.local/Documentos/proyect_vg/snake-game/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+ Image mongo:6-alpine Pulling 
+ Image nginx:1.25-alpine Pulling 
+ Image mongo:6-alpine Error failed to resolve reference "docker.io/library/mongo:6-alpine": docker.io/library/mongo:6-alpine: not found
+ Image nginx:1.25-alpine Interrupted 
+Error response from daemon: failed to resolve reference "docker.io/library/mongo:6-alpine": docker.io/library/mongo:6-alpine: not found
+make: *** [Makefile:97: up] Error 1

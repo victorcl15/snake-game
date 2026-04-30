@@ -1,86 +1,375 @@
 .game-screen {
   position: relative;
   width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100vh;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0a0e27 0%, #1a1a3e 100%);
 }
 
 .game-canvas {
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
 }
 
+/* Loading Overlay */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.loader {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(0, 255, 0, 0.2);
+  border-top-color: #00ff00;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-overlay p {
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  text-shadow: 0 0 10px #00ff00;
+}
+
+/* HUD */
 .hud {
-  position: fixed;
+  position: absolute;
   top: 20px;
   left: 20px;
-  z-index: 100;
   display: flex;
-  gap: 30px;
-  font-family: 'Courier New', monospace;
-  color: #0f0;
-  text-shadow: 0 0 10px #0f0;
+  gap: 20px;
+  z-index: 10;
+  pointer-events: none;
 }
 
 .stat-box {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  padding: 12px 20px;
+  background: rgba(0, 20, 40, 0.7);
+  border: 2px solid #00ff00;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.3), inset 0 0 20px rgba(0, 255, 0, 0.1);
 }
 
 .stat-label {
-  font-size: 12px;
-  font-weight: bold;
+  color: #00aa00;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
   letter-spacing: 2px;
-  opacity: 0.7;
+  text-transform: uppercase;
+  margin-bottom: 4px;
 }
 
 .stat-value {
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
   font-size: 24px;
   font-weight: bold;
-  font-variant-numeric: tabular-nums;
-  animation: glow 0.5s ease-in-out;
+  text-shadow: 0 0 10px #00ff00;
 }
 
-@keyframes glow {
-  0% {
-    text-shadow: 0 0 5px #0f0, 0 0 10px #0f0;
+/* Game Info */
+.game-info {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  z-index: 10;
+}
+
+.fps-counter {
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  background: rgba(0, 20, 40, 0.7);
+  padding: 8px 12px;
+  border: 1px solid #00ff00;
+  border-radius: 4px;
+  text-shadow: 0 0 5px #00ff00;
+}
+
+.pause-indicator {
+  color: #ffaa00;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  font-weight: bold;
+  background: rgba(40, 20, 0, 0.8);
+  padding: 8px 12px;
+  border: 2px solid #ffaa00;
+  border-radius: 4px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
   }
   50% {
-    text-shadow: 0 0 15px #0f0, 0 0 20px #0f0;
+    opacity: 0.5;
+  }
+}
+
+/* Menu Overlay */
+.menu-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+  backdrop-filter: blur(8px);
+}
+
+.menu-content {
+  text-align: center;
+  color: #00ff00;
+  font-family: 'Courier New', monospace;
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menu-content h1 {
+  font-size: 48px;
+  margin: 0 0 10px 0;
+  text-shadow: 0 0 20px #00ff00;
+  letter-spacing: 2px;
+}
+
+.subtitle {
+  font-size: 18px;
+  color: #00aa00;
+  margin-bottom: 30px;
+  letter-spacing: 1px;
+}
+
+/* Buttons */
+.start-btn,
+.restart-btn {
+  padding: 14px 40px;
+  font-size: 18px;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+  color: #000;
+  background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 255, 0, 0.3);
+  margin-top: 20px;
+}
+
+.start-btn:hover,
+.restart-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(0, 255, 0, 0.5);
+  background: linear-gradient(135deg, #00ff00 0%, #00ff00 100%);
+}
+
+.start-btn:active,
+.restart-btn:active {
+  transform: translateY(0);
+}
+
+/* Controls Info */
+.controls-info {
+  margin-top: 40px;
+  text-align: left;
+  padding: 20px;
+  border: 2px solid #00ff00;
+  border-radius: 8px;
+  background: rgba(0, 20, 40, 0.5);
+  max-width: 350px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.controls-info p {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.controls-info ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.controls-info li {
+  padding: 8px 0;
+  font-size: 12px;
+  color: #00aa00;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.controls-info li:last-child {
+  border-bottom: none;
+}
+
+/* Game Over Overlay */
+.gameover-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 60;
+  backdrop-filter: blur(10px);
+}
+
+.gameover-content {
+  text-align: center;
+  animation: bounceIn 0.6s ease-out;
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
   }
   100% {
-    text-shadow: 0 0 5px #0f0, 0 0 10px #0f0;
+    transform: scale(1);
   }
 }
 
-.start-btn {
-  position: fixed;
-  bottom: 50px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  padding: 12px 30px;
-  background: #0f0;
-  color: #000;
+.gameover-content h2 {
+  font-size: 56px;
+  color: #ff0000;
+  margin: 0 0 20px 0;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 30px #ff0000;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.final-score {
+  font-size: 28px;
+  color: #ffaa00;
+  margin: 0 0 30px 0;
+  font-family: 'Courier New', monospace;
+  text-shadow: 0 0 15px #ffaa00;
+}
+
+/* Error Screen */
+.game-screen.error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.error-message {
+  text-align: center;
+  color: #ff0000;
+  font-family: 'Courier New', monospace;
+  background: rgba(40, 0, 0, 0.8);
+  padding: 40px;
+  border: 2px solid #ff0000;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.error-message h2 {
+  font-size: 28px;
+  margin: 0 0 15px 0;
+  text-shadow: 0 0 15px #ff0000;
+}
+
+.error-message p {
+  font-size: 14px;
+  margin: 0 0 20px 0;
+  color: #ff6666;
+}
+
+.error-message button {
+  padding: 10px 20px;
+  font-size: 14px;
+  background: #ff0000;
+  color: white;
   border: none;
   border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 16px;
-  font-weight: bold;
   cursor: pointer;
-  transition: all 0.3s ease;
+  font-family: 'Courier New', monospace;
 }
 
-.start-btn:hover {
-  background: #00ff00;
-  box-shadow: 0 0 20px #0f0;
+.error-message button:hover {
+  background: #ff3333;
 }
 
-.start-btn:active {
-  transform: translateX(-50%) scale(0.95);
+/* Responsive */
+@media (max-width: 768px) {
+  .menu-content h1 {
+    font-size: 36px;
+  }
+
+  .controls-info {
+    font-size: 11px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .hud {
+    top: 10px;
+    left: 10px;
+    gap: 10px;
+  }
+
+  .stat-box {
+    padding: 8px 12px;
+  }
 }

@@ -27,6 +27,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           babylon: ['@babylonjs/core', '@babylonjs/inspector'],
+          cannon: ['cannon'],
           tone: ['tone'],
           react: ['react', 'react-dom'],
           socket: ['socket.io-client'],
@@ -47,7 +48,7 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    include: ['@babylonjs/core', 'tone', 'zustand', 'socket.io-client'],
+    include: ['@babylonjs/core', '@babylonjs/inspector', 'cannon', 'tone', 'zustand', 'socket.io-client'],
   },
 
   define: {

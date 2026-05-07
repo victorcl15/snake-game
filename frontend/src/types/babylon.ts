@@ -20,7 +20,7 @@ export interface SceneMeshes {
   snakeSegments: BABYLON.Mesh[]
   foodMesh: BABYLON.Mesh | null
   arenaPlane: BABYLON.Mesh | null
-  gridLines: BABYLON.LinesMesh | null
+  gridLines: BABYLON.Mesh | null
   skybox: BABYLON.Mesh | null
 }
 
@@ -32,7 +32,7 @@ export interface SceneMaterials {
   snakeBody: BABYLON.StandardMaterial | null
   food: BABYLON.StandardMaterial | null
   arena: BABYLON.StandardMaterial | null
-  gridMaterial: BABYLON.LinesMaterial | null
+  gridMaterial: BABYLON.StandardMaterial | null
 }
 
 /**

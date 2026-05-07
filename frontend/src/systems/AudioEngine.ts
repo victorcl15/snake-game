@@ -14,21 +14,34 @@ export class AudioEngine {
 
   async initialize(): Promise<void> {
     try {
-      if (Tone.context.state === 'suspended') {
-        await Tone.start()
-      }
+      // No esperar Tone.start() aquí - requiere user gesture
+      // Se inicializará lazy cuando se necesite audio
       this.initialized = true
-      console.log('[AudioEngine] Inicializado')
+      console.log('[AudioEngine] Inicializado (audio lazy)')
     } catch (error) {
       console.error('[AudioEngine] Error al inicializar:', error)
     }
   }
 
   /**
+   * Garantizar que Tone está listo (lazy initialization)
+   */
+  private async ensureToneReady(): Promise<void> {
+    if (Tone.context.state === 'suspended') {
+      try {
+        await Tone.start()
+      } catch (error) {
+        console.warn('[AudioEngine] No se pudo iniciar Tone (requerido: user gesture):', error)
+      }
+    }
+  }
+
+  /**
    * Sonido al comer comida
    */
-  playFoodEatenSound(): void {
+  async playFoodEatenSound(): Promise<void> {
     if (!this.initialized) return
+    await this.ensureToneReady()
 
     try {
       // Crear sintetizador si no existe
@@ -54,8 +67,9 @@ export class AudioEngine {
   /**
    * Sonido de colisión/game over
    */
-  playCollisionSound(): void {
+  async playCollisionSound(): Promise<void> {
     if (!this.initialized) return
+    await this.ensureToneReady()
 
     try {
       if (!this.synths.has('collision')) {
@@ -79,8 +93,9 @@ export class AudioEngine {
   /**
    * Sonido de levantamiento de puntuación
    */
-  playScoreSound(): void {
+  async playScoreSound(): Promise<void> {
     if (!this.initialized) return
+    await this.ensureToneReady()
 
     try {
       if (!this.synths.has('score')) {
@@ -103,8 +118,9 @@ export class AudioEngine {
   /**
    * Sonido de game over (nota larga y triste)
    */
-  playGameOverSound(): void {
+  async playGameOverSound(): Promise<void> {
     if (!this.initialized) return
+    await this.ensureToneReady()
 
     try {
       if (!this.synths.has('gameOver')) {
@@ -129,8 +145,9 @@ export class AudioEngine {
   /**
    * Sonido de level up
    */
-  playLevelUpSound(): void {
+  async playLevelUpSound(): Promise<void> {
     if (!this.initialized) return
+    await this.ensureToneReady()
 
     try {
       if (!this.synths.has('levelUp')) {

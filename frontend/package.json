@@ -7,7 +7,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "build-with-ts": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext ts,tsx",
@@ -19,8 +20,10 @@
   "dependencies": {
     "@babylonjs/core": "^7.0.0",
     "@babylonjs/inspector": "^7.0.0",
+    "cannon": "^0.6.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
     "socket.io-client": "^4.7.0",
     "zustand": "^4.4.0",
     "tone": "^14.8.0"

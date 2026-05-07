@@ -94,47 +94,49 @@ export class BabylonEngine implements IBabylonEngine {
     }
 
     try {
-      // Crear engine
+      console.log('[BabylonEngine] 1. Creando engine...')
       this.engine = new BABYLON.Engine(this.canvas, this.config.antialias, this.config)
 
-      // Crear escena
+      console.log('[BabylonEngine] 2. Creando escena...')
       this.scene = new BABYLON.Scene(this.engine)
       this.scene.clearColor = new BABYLON.Color3(0.05, 0.05, 0.15)
-      this.scene.collisionsEnabled = true
+      this.scene.collisionsEnabled = false
 
-      // Activar physics
-      this.scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), new BABYLON.CannonJSPlugin())
-
-      // Crear cámara
+      console.log('[BabylonEngine] 3. Creando cámara...')
       this.createCamera()
 
-      // Configurar iluminación
+      console.log('[BabylonEngine] 4. Configurando iluminación...')
       this.setupLighting()
 
-      // Crear arena
+      console.log('[BabylonEngine] 5. Creando arena...')
       this.createArena()
 
-      // Inicializar sistemas
+      console.log('[BabylonEngine] 6. Inicializando sistemas...')
       this.inputController = new InputController()
       this.particleSystem = new ParticleSystem(this.scene)
       this.audioEngine = new AudioEngine()
-      await this.audioEngine.initialize()
+      
+      console.log('[BabylonEngine] 7. Inicializando audio...')
+      try {
+        await this.audioEngine.initialize()
+      } catch (audioError) {
+        console.warn('[BabylonEngine] Audio warning:', audioError)
+      }
 
-      // Configurar post-processing
+      console.log('[BabylonEngine] 8. Configurando post-processing...')
       this.setupPostProcessing()
 
-      // Manejar resize de ventana
+      console.log('[BabylonEngine] 9. Configurando event listeners...')
       window.addEventListener('resize', () => this.onWindowResize())
 
+      console.log('[BabylonEngine] 10. Iniciando render loop...')
       this.isInitialized = true
       this.renderState.isRunning = true
-
-      // Iniciar loop de renderizado
       this.startRenderLoop()
 
-      console.log('[BabylonEngine] Inicializado correctamente')
+      console.log('[BabylonEngine] ✅ Inicializado correctamente')
     } catch (error) {
-      console.error('[BabylonEngine] Error en inicialización:', error)
+      console.error('[BabylonEngine] ❌ Error en inicialización:', error)
       throw error
     }
   }
@@ -166,20 +168,8 @@ export class BabylonEngine implements IBabylonEngine {
   private setupPostProcessing(): void {
     if (!this.scene) return
 
-    // Bloom effect
-    const bloomEffect = new BABYLON.PostProcess(
-      'bloom',
-      'bloom',
-      ['bloomThreshold', 'bloomScale'],
-      [],
-      1.0,
-      this.camera!
-    )
-
-    bloomEffect.onApply = (effect) => {
-      effect.setFloat('bloomThreshold', 0.7)
-      effect.setFloat('bloomScale', 0.5)
-    }
+    // Glow Layer será configurada cuando se creen los meshes
+    console.log('[BabylonEngine] Post-processing configurado')
   }
 
   /**
@@ -240,70 +230,7 @@ export class BabylonEngine implements IBabylonEngine {
     this.meshes.arenaPlane.material = this.materials.arena
     this.meshes.arenaPlane.receiveShadows = true
 
-    // Crear líneas del grid
-    this.createGridLines()
-
-    // Crear paredes
-    this.createWalls()
-
-    console.log('[BabylonEngine] Arena creada')
-  }
-
-  /**
-   * Crear paredes del arena
-   */
-  private createWalls(): void {
-    if (!this.scene) return
-
-    const wallHeight = 0.5
-    const wallThickness = 0.2
-    const gridHalfSize = (this.GRID_SIZE * this.GRID_SPACING) / 2 + wallThickness / 2
-
-    const wallMaterial = new BABYLON.StandardMaterial('wallMaterial', this.scene)
-    wallMaterial.diffuse = new BABYLON.Color3(0.3, 0.3, 0.4)
-    wallMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1)
-
-    // Paredes norte y sur
-    const wallNS = BABYLON.MeshBuilder.CreateBox(
-      'wallNS',
-      {
-        width: this.GRID_SIZE * this.GRID_SPACING + wallThickness * 2,
-        height: wallHeight,
-        depth: wallThickness,
-      },
-      this.scene
-    )
-    wallNS.position.z = gridHalfSize
-    wallNS.position.y = wallHeight / 2
-    wallNS.material = wallMaterial
-
-    const wallNS2 = wallNS.clone('wallNS2')
-    wallNS2.position.z = -gridHalfSize
-
-    // Paredes este y oeste
-    const wallEW = BABYLON.MeshBuilder.CreateBox(
-      'wallEW',
-      {
-        width: wallThickness,
-        height: wallHeight,
-        depth: this.GRID_SIZE * this.GRID_SPACING,
-      },
-      this.scene
-    )
-    wallEW.position.x = gridHalfSize
-    wallEW.position.y = wallHeight / 2
-    wallEW.material = wallMaterial
-
-    const wallEW2 = wallEW.clone('wallEW2')
-    wallEW2.position.x = -gridHalfSize
-  }
-
-  /**
-   * Crear líneas del grid visual
-   */
-  private createGridLines(): void {
-    if (!this.scene) return
-
+    // Crear líneas del grid usando LinesMesh manualmente
     const lines: BABYLON.Vector3[] = []
     const halfSize = (this.GRID_SIZE * this.GRID_SPACING) / 2
 
@@ -321,24 +248,36 @@ export class BabylonEngine implements IBabylonEngine {
       lines.push(new BABYLON.Vector3(offset, 0.01, halfSize))
     }
 
-    const linesMesh = BABYLON.MeshBuilder.CreateTubes(
-      'gridLines',
-      {
-        tubes: lines.map((_, i) => {
-          if (i % 2 === 0 && i + 1 < lines.length) {
-            return { start: lines[i], end: lines[i + 1] }
-          }
-          return null
-        }).filter(Boolean) as any[],
-        radius: 0.02,
-        updatable: false,
-      },
-      this.scene
-    )
+    // Crear grid usando TubeBuilder en lugar de CreateLines
+    const gridGroup = new BABYLON.Mesh('gridGroup', this.scene)
+    
+    // Líneas horizontales como tubos
+    for (let i = 0; i <= this.GRID_SIZE; i++) {
+      const offset = (i - this.GRID_SIZE / 2) * this.GRID_SPACING
+      const path = [
+        new BABYLON.Vector3(-halfSize, 0.01, offset),
+        new BABYLON.Vector3(halfSize, 0.01, offset)
+      ]
+      const tube = BABYLON.MeshBuilder.CreateTube(`gridH_${i}`, { path, radius: 0.02 }, this.scene)
+      tube.parent = gridGroup
+    }
+
+    // Líneas verticales como tubos
+    for (let i = 0; i <= this.GRID_SIZE; i++) {
+      const offset = (i - this.GRID_SIZE / 2) * this.GRID_SPACING
+      const path = [
+        new BABYLON.Vector3(offset, 0.01, -halfSize),
+        new BABYLON.Vector3(offset, 0.01, halfSize)
+      ]
+      const tube = BABYLON.MeshBuilder.CreateTube(`gridV_${i}`, { path, radius: 0.02 }, this.scene)
+      tube.parent = gridGroup
+    }
 
     this.materials.gridMaterial = new BABYLON.StandardMaterial('gridMaterial', this.scene)
     this.materials.gridMaterial.emissiveColor = new BABYLON.Color3(0.2, 0.4, 0.7)
     this.materials.gridMaterial.backFaceCulling = false
+    gridGroup.material = this.materials.gridMaterial
+    this.meshes.gridLines = gridGroup
   }
 
   /**
@@ -443,6 +382,11 @@ export class BabylonEngine implements IBabylonEngine {
     this.meshes.foodMesh.receiveShadows = true
     this.meshes.foodMesh.castShadows = true
 
+    // Agregar efecto de glow al crear la comida
+    const glowLayer = new BABYLON.GlowLayer('glow', this.scene)
+    glowLayer.addIncludedOnlyMesh(this.meshes.foodMesh)
+    glowLayer.intensity = 1.5
+
     console.log('[BabylonEngine] Food mesh creado')
   }
 
@@ -466,7 +410,7 @@ export class BabylonEngine implements IBabylonEngine {
     if (!this.meshes.foodMesh) return
 
     // Reproducir sonido
-    this.audioEngine?.playFoodEatenSound()
+    await this.audioEngine?.playFoodEatenSound()
 
     // Crear partículas
     const worldPos = this.gridToWorld(position)
@@ -618,30 +562,30 @@ export class BabylonEngine implements IBabylonEngine {
   /**
    * Efectos de colisión
    */
-  playCollisionEffect(position: BABYLON.Vector3): void {
+  async playCollisionEffect(position: BABYLON.Vector3): Promise<void> {
     console.log('[BabylonEngine] Efecto de colisión en:', position)
     this.particleSystem?.createCollisionParticles(position)
-    this.audioEngine?.playCollisionSound()
+    await this.audioEngine?.playCollisionSound()
   }
 
   /**
    * Efectos de puntuación
    */
-  playScoreEffect(): void {
+  async playScoreEffect(): Promise<void> {
     console.log('[BabylonEngine] Efecto de puntuación')
-    this.audioEngine?.playScoreSound()
+    await this.audioEngine?.playScoreSound()
   }
 
   /**
    * Efectos de game over
    */
-  playGameOverEffect(): void {
+  async playGameOverEffect(): Promise<void> {
     console.log('[BabylonEngine] Efecto de game over')
     if (this.meshes.snakeSegments.length > 0) {
       const snakeHead = this.meshes.snakeSegments[0].position
       this.particleSystem?.createGameOverParticles(snakeHead)
     }
-    this.audioEngine?.playGameOverSound()
+    await this.audioEngine?.playGameOverSound()
   }
 
   /**
@@ -708,10 +652,6 @@ export class BabylonEngine implements IBabylonEngine {
 
   getRenderState(): RenderState {
     return { ...this.renderState }
-  }
-
-  isInitialized(): boolean {
-    return this.isInitialized
   }
 
   disposeFoodMesh(): void {

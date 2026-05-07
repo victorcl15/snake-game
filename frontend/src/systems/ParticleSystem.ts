@@ -24,8 +24,8 @@ export class ParticleSystem {
     particleSystem.particleTexture = new BABYLON.DynamicTexture('particleTexture', 64, this.scene)
 
     // Material
-    particleSystem.addStartColorGradient(0, new BABYLON.Color4(1, 0.5, 0, 1))
-    particleSystem.addColorRemovalGradient(1, new BABYLON.Color4(1, 0.2, 0, 0))
+    particleSystem.addColorGradient(0, new BABYLON.Color4(1, 0.5, 0, 1))
+    particleSystem.addColorRemapGradient(1, new BABYLON.Color4(1, 0.2, 0, 0))
 
     // Emisión
     particleSystem.emitRate = 100
@@ -68,8 +68,8 @@ export class ParticleSystem {
     particleSystem.emitter = emitter
 
     // Material - Rojo para colisión
-    particleSystem.addStartColorGradient(0, new BABYLON.Color4(1, 0, 0, 1))
-    particleSystem.addColorRemovalGradient(1, new BABYLON.Color4(1, 0, 0, 0))
+    particleSystem.addColorGradient(0, new BABYLON.Color4(1, 0, 0, 1))
+    particleSystem.addColorRemapGradient(1, new BABYLON.Color4(1, 0, 0, 0))
 
     // Emisión explosiva
     particleSystem.emitRate = 200
@@ -107,8 +107,8 @@ export class ParticleSystem {
     particleSystem.emitter = emitter
 
     // Material - Amarillo para score
-    particleSystem.addStartColorGradient(0, new BABYLON.Color4(1, 1, 0, 1))
-    particleSystem.addColorRemovalGradient(1, new BABYLON.Color4(1, 1, 0, 0))
+    particleSystem.addColorGradient(0, new BABYLON.Color4(1, 1, 0, 1))
+    particleSystem.addColorRemapGradient(1, new BABYLON.Color4(1, 1, 0, 0))
 
     particleSystem.emitRate = 50
     particleSystem.minEmitPower = 8
@@ -145,8 +145,8 @@ export class ParticleSystem {
     particleSystem.emitter = emitter
 
     // Material - Púrpura oscuro
-    particleSystem.addStartColorGradient(0, new BABYLON.Color4(0.8, 0, 0.8, 1))
-    particleSystem.addColorRemovalGradient(1, new BABYLON.Color4(0.8, 0, 0.8, 0))
+    particleSystem.addColorGradient(0, new BABYLON.Color4(0.8, 0, 0.8, 1))
+    particleSystem.addColorRemapGradient(1, new BABYLON.Color4(0.8, 0, 0.8, 0))
 
     particleSystem.emitRate = 300
     particleSystem.minEmitPower = 20

@@ -37,7 +37,7 @@ const portal = (ax: number, ay: number, bx: number, by: number, color: string): 
   color,
 })
 
-const stars = (goal: number): [number, number] => [goal * 18, goal * 30]
+const stars = (goal: number): [number, number] => [goal * 18, goal * 32]
 
 /* ============================================================
  * Temas visuales
@@ -84,6 +84,10 @@ const T = {
     bg: '#120300', ground1: '#2a0d05', ground2: '#321007', gridLine: '#6e2810',
     wall: '#a8360f', wallGlow: '#ffb347', snakeHead: '#ffffff', snakeBody1: '#9af0ff', snakeBody2: '#5ac8ff', accent: '#ffb347',
   },
+  inferno: {
+    bg: '#0a0003', ground1: '#1e0207', ground2: '#2c040c', gridLine: '#800615',
+    wall: '#d60029', wallGlow: '#ff003c', snakeHead: '#ffffff', snakeBody1: '#ff0044', snakeBody2: '#ff6600', accent: '#ff003c',
+  },
   endless: {
     bg: '#05030f', ground1: '#120f24', ground2: '#16122c', gridLine: '#332a66',
     wall: '#5a3fd1', wallGlow: '#ff5af0', snakeHead: '#a0fff8', snakeBody1: '#3ae0ff', snakeBody2: '#2a9cff', accent: '#ff5af0',
@@ -91,7 +95,7 @@ const T = {
 } satisfies Record<string, Theme>
 
 /* ============================================================
- * Niveles de campaña
+ * Niveles de campaña (1 al 11)
  * ============================================================ */
 
 export const LEVELS: LevelDef[] = [
@@ -237,8 +241,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 10,
     name: 'Núcleo',
-    subtitle: 'El desafío final',
-    description: 'La prueba definitiva: un anillo fortificado, centinelas en tres frentes y portales internos. ¿Llegarás al final?',
+    subtitle: 'El bastión de choque',
+    description: 'La prueba definitiva de reflejos: un anillo fortificado, centinelas en tres frentes y portales internos.',
     gridW: 24, gridH: 24, wrap: true,
     startSpeed: 120, minSpeed: 70, speedStep: 3,
     goal: 22,
@@ -256,6 +260,42 @@ export const LEVELS: LevelDef[] = [
     stars: stars(22),
     theme: T.core,
   },
+  {
+    id: 11,
+    name: 'Infierno Carmesí',
+    subtitle: 'Pesadilla Demoníaca',
+    description: 'El reino del averno. Velocidad brutal, muros perimetrales mortales, 4 centinelas demoníacos ultra veloces y portales de fuego cruzado.',
+    gridW: 26, gridH: 26, wrap: false,
+    startSpeed: 105, minSpeed: 50, speedStep: 2.2,
+    goal: 25,
+    start: { x: 2, y: 13, dir: 'up' },
+    walls: [
+      // 4 altares demoníacos en las esquinas
+      ...block(5, 5, 3, 3),
+      ...block(18, 5, 3, 3),
+      ...block(5, 18, 3, 3),
+      ...block(18, 18, 3, 3),
+      // Columnas y barreras de lava
+      ...hline(9, 16, 8),
+      ...hline(9, 16, 17),
+      ...vline(12, 11, 14),
+      ...vline(13, 11, 14),
+    ],
+    portals: [
+      portal(3, 3, 22, 22, '#ff003c'), // Portal de Sangre
+      portal(22, 3, 3, 22, '#ff6600'), // Portal de Magma
+      portal(8, 13, 17, 13, '#b200ff'), // Portal del Vacío
+    ],
+    sentinels: [
+      path(hline(2, 23, 3), 1),
+      path(hline(2, 23, 22).reverse(), 1),
+      path(vline(3, 2, 23), 2),
+      path(vline(22, 2, 23).reverse(), 2),
+    ],
+    powerups: true,
+    stars: [25 * 22, 25 * 38],
+    theme: T.inferno,
+  },
 ]
 
 /* ============================================================
@@ -268,7 +308,7 @@ export const ENDLESS_LEVEL: LevelDef = {
   subtitle: 'Sobrevive todo lo que puedas',
   description: 'Sin meta. Cada 5 frutas aparece un nuevo obstáculo y la velocidad no deja de subir.',
   gridW: 20, gridH: 20, wrap: true,
-  startSpeed: 150, minSpeed: 60, speedStep: 2,
+  startSpeed: 150, minSpeed: 55, speedStep: 2,
   goal: Infinity,
   start: { x: 4, y: 10, dir: 'right' },
   walls: [], portals: [], sentinels: [],
@@ -285,8 +325,9 @@ export const levelFeatures = (l: LevelDef): string[] => {
   const f: string[] = []
   f.push(l.wrap ? 'Bordes envolventes' : 'Bordes mortales')
   if (l.walls.length) f.push('Muros')
-  if (l.portals.length) f.push('Portales')
-  if (l.sentinels.length) f.push('Centinelas')
+  if (l.portals.length) f.push(`${l.portals.length} Portales`)
+  if (l.sentinels.length) f.push(`${l.sentinels.length} Centinelas`)
   if (l.powerups) f.push('Power-ups')
+  if (l.id === 11) f.push('BOSS / MÁXIMA DIFICULTAD')
   return f
 }

@@ -446,17 +446,46 @@ export class Renderer {
     const node = new BABYLON.TransformNode(name, this.scene)
     node.parent = this.levelRoot
     node.position = this.cellToWorld(c, 0.05)
-    const m = this.mat(name + 'm', color, 1.0)
-    const torus = BABYLON.MeshBuilder.CreateTorus(name + 't', { diameter: 0.86, thickness: 0.1, tessellation: 24 }, this.scene)
-    torus.material = m
-    torus.parent = node
-    const beam = BABYLON.MeshBuilder.CreateCylinder(name + 'b', { height: 2.5, diameterTop: 0.15, diameterBottom: 0.65, tessellation: 16 }, this.scene)
-    beam.position.y = 1.25
-    const bm = this.mat(name + 'bm', color, 0.8, 0.15)
+
+    // 1. Runa en el suelo con pulso y halo exterior
+    const disc = BABYLON.MeshBuilder.CreateDisc(name + 'disc', { radius: 0.54, tessellation: 32, sideOrientation: BABYLON.Mesh.DOUBLESIDE }, this.scene)
+    disc.rotation.x = Math.PI / 2
+    disc.position.y = 0.03
+    disc.material = this.foodMat(color, 1.0, 0.5)
+    disc.parent = node
+
+    // 2. Anillo exterior Stargate con inclinación vertical
+    const outer = BABYLON.MeshBuilder.CreateTorus(name + 'ot', { diameter: 1.05, thickness: 0.08, tessellation: 28 }, this.scene)
+    outer.position.y = 0.52
+    outer.rotation.x = Math.PI / 2.3
+    const om = this.mat(name + 'om', color, 0.95)
+    outer.material = om
+    outer.parent = node
+
+    // 3. Anillo vórtice interior en contra-rotación con brillo blanco de plasma
+    const inner = BABYLON.MeshBuilder.CreateTorus(name + 'it', { diameter: 0.72, thickness: 0.05, tessellation: 24 }, this.scene)
+    inner.position.y = 0.52
+    inner.rotation.x = Math.PI / 2.3
+    const im = this.mat(name + 'im', '#ffffff', 1.0)
+    inner.material = im
+    inner.parent = node
+
+    // 4. Núcleo dimensional flotante de energía
+    const core = BABYLON.MeshBuilder.CreatePolyhedron(name + 'core', { type: 1, size: 0.22 }, this.scene)
+    core.position.y = 0.52
+    core.material = this.foodMat(color, 1.0)
+    core.parent = node
+
+    // 5. Haz de luz vertical translúcido
+    const beam = BABYLON.MeshBuilder.CreateCylinder(name + 'b', { height: 2.8, diameterTop: 0.1, diameterBottom: 0.8, tessellation: 20 }, this.scene)
+    beam.position.y = 1.4
+    const bm = this.mat(name + 'bm', color, 0.9, 0.18)
     bm.disableLighting = true
     beam.material = bm
     beam.parent = node
     this.glow.addExcludedMesh(beam)
+
+    node.metadata = { outer, inner, core, disc }
     return node
   }
 
@@ -874,9 +903,26 @@ export class Renderer {
       if (ring) ring.rotation.x += dt * 0.004
     })
 
-    // Portales
+    // Portales interactivos con efecto Stargate y contra-rotación
     this.portalNodes.forEach((n, i) => {
-      n.rotation.y += dt * 0.002 * (i % 2 ? -1 : 1)
+      const meta = n.metadata as {
+        outer: BABYLON.Mesh
+        inner: BABYLON.Mesh
+        core: BABYLON.Mesh
+        disc: BABYLON.Mesh
+      }
+      if (meta) {
+        const dir = i % 2 === 0 ? 1 : -1
+        meta.outer.rotation.z += dt * 0.0035 * dir
+        meta.inner.rotation.z -= dt * 0.006 * dir
+        meta.core.rotation.y += dt * 0.005
+        meta.core.rotation.x += dt * 0.003
+        const pulse = 1 + Math.sin(t * 0.006 + i * 2) * 0.14
+        meta.core.scaling.set(pulse, pulse, pulse)
+        meta.disc.scaling.set(pulse, pulse, pulse)
+      } else {
+        n.rotation.y += dt * 0.002 * (i % 2 ? -1 : 1)
+      }
     })
 
     // Muros emergentes

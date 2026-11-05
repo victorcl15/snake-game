@@ -5,7 +5,7 @@ import { Input } from '@/engine/Input'
 import { audio } from '@/engine/Audio'
 import { getLevel, LEVELS } from '@/game/levels'
 import { LevelDef, DeathCause } from '@/game/types'
-import { useProgress } from '@/stores/progressStore'
+import { useProgress, isLevelUnlocked } from '@/stores/progressStore'
 import { HUD } from './HUD'
 import { LevelSelectModal } from './LevelSelectModal'
 import { PauseModal } from './PauseModal'
@@ -24,6 +24,7 @@ export default function GameScreen() {
 
   const {
     unlocked,
+    devUnlockAll,
     settings,
     setSetting,
     completeLevel,
@@ -44,6 +45,7 @@ export default function GameScreen() {
   const [bestCombo, setBestCombo] = useState(1)
   const [isLevelSelectOpen, setIsLevelSelectOpen] = useState(false)
   const [isEngineReady, setIsEngineReady] = useState(false)
+  const [fps, setFps] = useState(60)
 
   // Desbloqueo de audio por primer gesto
   const ensureAudioUnlocked = useCallback(() => {
@@ -72,7 +74,7 @@ export default function GameScreen() {
     setBestCombo(1)
     setIsLevelSelectOpen(false)
 
-    // Configurar eventos del juego
+    // Configurar eventos del juego con actualizaciones reactivas eficientes
     newGame.events = {
       onEat: (food, points, curCombo) => {
         rendererRef.current?.onEat(food, points, curCombo)
@@ -80,6 +82,13 @@ export default function GameScreen() {
         else if (food.kind === 'apple') audio.eat(curCombo)
         else audio.powerUp()
         audio.setIntensity(Math.min(1, newGame.eaten / (level.goal === Infinity ? 30 : level.goal)))
+
+        // Actualizar estado de React SOLO en eventos (no en cada frame)
+        setScore(newGame.score)
+        setEaten(newGame.eaten)
+        setCombo(curCombo)
+        setBestCombo(newGame.bestCombo)
+        setEffects({ ...newGame.effects })
       },
       onTurn: () => {
         audio.turn()
@@ -95,6 +104,7 @@ export default function GameScreen() {
       onCountdown: (n) => {
         setCountdownNum(n)
         audio.countdown(n)
+        if (n <= 0) setGameStatus('playing')
       },
       onWallsAdded: (cells) => {
         rendererRef.current?.onWallsAdded(cells)
@@ -143,22 +153,14 @@ export default function GameScreen() {
     const renderer = new Renderer(canvasRef.current, overlayRef.current)
     rendererRef.current = renderer
     renderer.setCameraMode(settings.camera)
+    renderer.setHighPerformance(settings.highPerformance)
 
-    // Conectar ciclo por frame para sincronizar UI y ticks
+    // Render loop ultra-fluido a 60-120 FPS sin saturar React
     renderer.onFrame((dt) => {
       const g = gameRef.current
       if (!g) return
 
       g.update(dt)
-
-      // Actualizar estado para React
-      setScore(g.score)
-      setEaten(g.eaten)
-      setCombo(g.combo)
-      setComboRemaining(g.comboRemaining)
-      setEffects({ ...g.effects })
-      setBestCombo(g.bestCombo)
-      setGameStatus(g.status)
 
       // Polling de gamepad
       inputRef.current?.pollGamepad()
@@ -172,7 +174,11 @@ export default function GameScreen() {
       },
       pause: () => {
         ensureAudioUnlocked()
-        gameRef.current?.togglePause()
+        const g = gameRef.current
+        if (g) {
+          g.togglePause()
+          setGameStatus(g.status)
+        }
       },
       camera: () => {
         setSetting('camera', renderer.cameraMode === 'tilt' ? 'top' : 'tilt')
@@ -209,12 +215,40 @@ export default function GameScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Temporizador desacoplado de baja frecuencia (100ms) para barras de tiempo regresivo y FPS
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const g = gameRef.current
+      if (!g) return
+
+      if (g.status === 'playing') {
+        setComboRemaining(g.comboRemaining)
+        if (g.effects.slow > 0 || g.effects.ghost > 0 || g.effects.double > 0) {
+          setEffects({ ...g.effects })
+        }
+      }
+
+      if (rendererRef.current) {
+        setFps(rendererRef.current.getFps())
+      }
+    }, 100)
+
+    return () => clearInterval(timer)
+  }, [])
+
   // Sincronizar ajustes de cámara
   useEffect(() => {
     if (rendererRef.current) {
       rendererRef.current.setCameraMode(settings.camera)
     }
   }, [settings.camera])
+
+  // Sincronizar ajustes de alto rendimiento
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.setHighPerformance(settings.highPerformance)
+    }
+  }, [settings.highPerformance])
 
   // Sincronizar música
   useEffect(() => {
@@ -238,9 +272,18 @@ export default function GameScreen() {
 
   const handleNextLevel = () => {
     const next = LEVELS.find((l) => l.id === currentLevel.id + 1)
-    if (next) {
+    if (next && isLevelUnlocked(next.id, unlocked, devUnlockAll)) {
       setCurrentLevel(next)
       startNewGame(next)
+    }
+  }
+
+  const handleTogglePause = () => {
+    ensureAudioUnlocked()
+    const g = gameRef.current
+    if (g) {
+      g.togglePause()
+      setGameStatus(g.status)
     }
   }
 
@@ -270,10 +313,9 @@ export default function GameScreen() {
         soundOn={settings.sfx}
         musicOn={settings.music}
         showDpad={settings.dpad}
-        onTogglePause={() => {
-          ensureAudioUnlocked()
-          gameRef.current?.togglePause()
-        }}
+        fps={fps}
+        devUnlockAll={devUnlockAll}
+        onTogglePause={handleTogglePause}
         onToggleCamera={() => {
           setSetting('camera', settings.camera === 'tilt' ? 'top' : 'tilt')
         }}
@@ -308,10 +350,7 @@ export default function GameScreen() {
             ensureAudioUnlocked()
             gameRef.current?.queueDir(d)
           }}
-          onPause={() => {
-            ensureAudioUnlocked()
-            gameRef.current?.togglePause()
-          }}
+          onPause={handleTogglePause}
         />
       )}
 
@@ -319,7 +358,7 @@ export default function GameScreen() {
       {gameStatus === 'paused' && !isLevelSelectOpen && (
         <PauseModal
           level={currentLevel}
-          onResume={() => gameRef.current?.togglePause()}
+          onResume={handleTogglePause}
           onRestart={() => startNewGame(currentLevel)}
           onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
         />

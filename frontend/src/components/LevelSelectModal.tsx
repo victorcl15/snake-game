@@ -1,7 +1,7 @@
 import React from 'react'
 import { LEVELS, ENDLESS_LEVEL, levelFeatures } from '@/game/levels'
 import { LevelDef } from '@/game/types'
-import { useProgress, totalStars } from '@/stores/progressStore'
+import { useProgress, totalStars, isLevelUnlocked } from '@/stores/progressStore'
 import { audio } from '@/engine/Audio'
 
 interface LevelSelectModalProps {
@@ -15,7 +15,7 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
   onSelectLevel,
   onClose,
 }) => {
-  const { unlocked, best, stars } = useProgress()
+  const { unlocked, best, stars, devUnlockAll, toggleDevUnlockAll } = useProgress()
   const earnedStars = totalStars(stars)
   const maxPossibleStars = LEVELS.length * 3
 
@@ -28,6 +28,11 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
     onSelectLevel(level)
   }
 
+  const handleDevToggle = () => {
+    audio.click()
+    toggleDevUnlockAll()
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-window level-select-modal" onClick={(e) => e.stopPropagation()}>
@@ -38,9 +43,19 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
               Elige tu desafío · {earnedStars}/{maxPossibleStars} ★ Obtenidas
             </p>
           </div>
-          <button className="btn-close" onClick={onClose} title="Cerrar">
-            ✕
-          </button>
+          <div className="modal-header-actions">
+            {/* Botón de Modo Desarrollador para desbloquear todos los niveles */}
+            <button
+              className={`btn-dev-toggle ${devUnlockAll ? 'dev-active' : ''}`}
+              onClick={handleDevToggle}
+              title="Alternar desbloqueo total de niveles para desarrollador"
+            >
+              🛠 {devUnlockAll ? 'MODO DEV: TODOS DESBLOQUEADOS' : 'MODO DEV: DESACTIVADO'}
+            </button>
+            <button className="btn-close" onClick={onClose} title="Cerrar">
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="level-grid-container">
@@ -67,7 +82,8 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
 
           {/* Tarjetas de Niveles de Campaña */}
           {LEVELS.map((level) => {
-            const isLocked = level.id > unlocked
+            const isUnlocked = isLevelUnlocked(level.id, unlocked, devUnlockAll)
+            const isLocked = !isUnlocked
             const isCurrent = level.id === currentLevelId
             const levelStars = stars[level.id] || 0
             const levelBest = best[level.id] || 0
@@ -90,7 +106,9 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
                 ) : null}
 
                 <div className="level-card-top">
-                  <span className="level-id-badge">NIVEL {level.id}</span>
+                  <span className="level-id-badge">
+                    NIVEL {level.id} {devUnlockAll && level.id > unlocked && <span className="dev-tag">DEV</span>}
+                  </span>
                   <div className="stars-indicator">
                     {[1, 2, 3].map((starIdx) => (
                       <span
@@ -142,4 +160,3 @@ export const LevelSelectModal: React.FC<LevelSelectModalProps> = ({
     </div>
   )
 }
-

@@ -8,17 +8,27 @@ export interface Settings {
   sfx: boolean
   camera: CameraMode
   dpad: boolean
+  fpsCounter: boolean
+  highPerformance: boolean
 }
 
+// Lectura de variables de entorno (Vite / Docker)
+const envUnlock =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_UNLOCK_ALL_LEVELS === 'true') ||
+  (typeof process !== 'undefined' && process.env?.VITE_UNLOCK_ALL_LEVELS === 'true')
+
 export interface ProgressState {
-  /** nivel más alto desbloqueado */
+  /** nivel más alto desbloqueado en campaña normal */
   unlocked: number
   best: Record<number, number>
   stars: Record<number, number>
   endlessBest: number
   gamesPlayed: number
+  /** Modo desarrollador: desbloquea todos los niveles para testing */
+  devUnlockAll: boolean
   settings: Settings
 
+  toggleDevUnlockAll: () => void
   completeLevel: (id: number, score: number, stars: number) => { newBest: boolean }
   recordEndless: (score: number) => { newBest: boolean }
   recordGame: () => void
@@ -36,7 +46,17 @@ export const useProgress = create<ProgressState>()(
       stars: {},
       endlessBest: 0,
       gamesPlayed: 0,
-      settings: { music: true, sfx: true, camera: 'tilt', dpad: !!isTouch },
+      devUnlockAll: envUnlock ?? true,
+      settings: {
+        music: true,
+        sfx: true,
+        camera: 'tilt',
+        dpad: !!isTouch,
+        fpsCounter: true,
+        highPerformance: true,
+      },
+
+      toggleDevUnlockAll: () => set((s) => ({ devUnlockAll: !s.devUnlockAll })),
 
       completeLevel: (id, score, stars) => {
         const s = get()
@@ -68,5 +88,10 @@ export const useProgress = create<ProgressState>()(
   )
 )
 
-export const totalStars = (stars: Record<number, number>) => Object.values(stars).reduce((a, b) => a + b, 0)
+export const isLevelUnlocked = (id: number, unlocked: number, devUnlockAll: boolean): boolean => {
+  if (devUnlockAll) return true
+  if (id === 0) return true // Modo infinito siempre disponible
+  return id <= unlocked
+}
 
+export const totalStars = (stars: Record<number, number>) => Object.values(stars).reduce((a, b) => a + b, 0)

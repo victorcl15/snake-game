@@ -965,3 +965,90 @@
     font-size: 1.2rem;
   }
 }
+
+
+/* ============================================================
+   FPS COUNTER & DEVELOPER MODE ENHANCEMENTS
+   ============================================================ */
+.fps-badge {
+  font-family: 'Courier New', monospace;
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(10, 15, 35, 0.7);
+  letter-spacing: 0.5px;
+}
+
+.fps-high {
+  color: var(--neon-green);
+  border-color: rgba(57, 255, 176, 0.4);
+  text-shadow: 0 0 6px var(--neon-green);
+}
+
+.fps-med {
+  color: var(--neon-gold);
+  border-color: rgba(255, 211, 77, 0.4);
+  text-shadow: 0 0 6px var(--neon-gold);
+}
+
+.fps-low {
+  color: var(--neon-red);
+  border-color: rgba(255, 48, 72, 0.4);
+  text-shadow: 0 0 6px var(--neon-red);
+}
+
+.dev-pill-hud {
+  background: var(--neon-pink);
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  box-shadow: 0 0 8px var(--neon-pink);
+  letter-spacing: 1px;
+}
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-dev-toggle {
+  background: rgba(255, 61, 240, 0.15);
+  border: 1px solid var(--neon-pink);
+  color: #ff9ef4;
+  font-weight: 800;
+  font-size: 0.75rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 10px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+
+.btn-dev-toggle:hover {
+  background: rgba(255, 61, 240, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 0 14px rgba(255, 61, 240, 0.4);
+}
+
+.btn-dev-toggle.dev-active {
+  background: var(--neon-pink);
+  color: #fff;
+  box-shadow: 0 0 16px var(--neon-pink);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+.dev-tag {
+  background: var(--neon-pink);
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 900;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  margin-left: 0.4rem;
+}

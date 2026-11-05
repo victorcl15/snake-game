@@ -15,6 +15,8 @@ interface HUDProps {
   soundOn: boolean
   musicOn: boolean
   showDpad: boolean
+  fps: number
+  devUnlockAll: boolean
   onTogglePause: () => void
   onToggleCamera: () => void
   onToggleSound: () => void
@@ -35,6 +37,8 @@ export const HUD: React.FC<HUDProps> = ({
   soundOn,
   musicOn,
   showDpad,
+  fps,
+  devUnlockAll,
   onTogglePause,
   onToggleCamera,
   onToggleSound,
@@ -48,14 +52,15 @@ export const HUD: React.FC<HUDProps> = ({
 
   return (
     <div className="game-hud">
-      {/* Barra superior izquierda: Nivel y Botón de selección */}
+      {/* Barra superior izquierda: Nivel, Indicador Dev y Botón de selección */}
       <div className="hud-group hud-left">
         <button
           className="btn-hud level-selector-btn"
           onClick={onOpenLevelSelect}
-          title="Cambiar Nivel"
+          title="Cambiar Nivel / Modo Desarrollador"
         >
           <span className="level-badge">{isEndless ? '∞' : `LVL ${level.id}`}</span>
+          {devUnlockAll && <span className="dev-pill-hud" title="Modo Desarrollador activo">DEV</span>}
           <span className="level-name-hud">{level.name}</span>
           <span className="change-icon">▼</span>
         </button>
@@ -121,8 +126,13 @@ export const HUD: React.FC<HUDProps> = ({
         </div>
       </div>
 
-      {/* Barra superior derecha: Controles y Ajustes */}
+      {/* Barra superior derecha: FPS Counter, Controles y Ajustes */}
       <div className="hud-group hud-right">
+        {/* Contador de FPS en tiempo real */}
+        <div className={`fps-badge ${fps >= 55 ? 'fps-high' : fps >= 30 ? 'fps-med' : 'fps-low'}`} title="Tasa de cuadros por segundo">
+          {fps} FPS
+        </div>
+
         <button
           className={`btn-hud-icon ${cameraMode === 'top' ? 'active' : ''}`}
           onClick={onToggleCamera}
@@ -166,4 +176,3 @@ export const HUD: React.FC<HUDProps> = ({
     </div>
   )
 }
-

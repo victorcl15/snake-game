@@ -51,5 +51,7 @@ export default defineConfig({
   define: {
     'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:4000'),
     'process.env.VITE_SOCKET_URL': JSON.stringify(process.env.VITE_SOCKET_URL || 'http://localhost:4001'),
+    'process.env.VITE_UNLOCK_ALL_LEVELS': JSON.stringify(process.env.VITE_UNLOCK_ALL_LEVELS ?? 'true'),
+    'process.env.VITE_DEV_MODE': JSON.stringify(process.env.VITE_DEV_MODE ?? 'true'),
   },
 });

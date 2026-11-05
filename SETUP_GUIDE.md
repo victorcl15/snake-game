@@ -25,38 +25,43 @@ This is a **production-ready** Snake Game with Triple-A quality graphics using:
 
 ## 🚀 Quick Start (5 minutes)
 
-### 1. Clone and Setup Environment
+### 1. Iniciar el Proyecto (Docker)
 
-```bash
-# Clone repository
-git clone <your-repo-url>
-cd snake-game
+El proyecto cuenta con wrappers listos para usar en cualquier terminal:
 
-# Setup environment files
-make env-setup
-
-# Edit .env.development with your values (if needed)
+#### En Windows (PowerShell / CMD):
+```powershell
+# Iniciar todos los servicios
+.\make.bat up
+# o directamente con Docker Compose:
+docker compose up -d
 ```
 
-### 2. Install Dependencies
-
+#### En Git Bash / Linux / macOS:
 ```bash
-make install
-```
-
-### 3. Start Development Environment
-
-```bash
-# Start all services with Docker Compose
+# Iniciar todos los servicios
+./make up
+# o con Make clásico (si está instalado):
 make up
-
-# Or start individual services
-make dev-frontend  # React dev server
-make dev-backend   # Express server
-make dev-db        # MongoDB only
 ```
 
-### 4. Access Applications
+### 2. Comandos Útiles Disponibles
+
+| Acción | Windows (PowerShell / CMD) | Git Bash / Linux | Comando Directo |
+|---|---|---|---|
+| Iniciar contenedores | `.\make.bat up` | `./make up` | `docker compose up -d` |
+| Detener contenedores | `.\make.bat down` | `./make down` | `docker compose down` |
+| Reiniciar contenedores | `.\make.bat restart` | `./make restart` | `docker compose down && docker compose up -d` |
+| Ver estado y URLs | `.\make.bat status` | `./make status` | `docker compose ps` |
+| Ver logs en vivo | `.\make.bat logs` | `./make logs` | `docker compose logs -f` |
+| Reconstruir frontend | `.\make.bat build-frontend` | `./make build-frontend` | `docker compose build frontend` |
+| Verificar salud de APIs | `.\make.bat health` | `./make health` | `curl http://localhost:4000/health` |
+
+> **Nota para Windows:**
+> Windows no incluye la utilidad GNU Make por defecto. Por eso creamos `make.bat` y `make.ps1` (para PowerShell y CMD) y `./make` (para Git Bash). Si deseas usar `make` a secas de forma global en cualquier terminal de Windows, puedes instalarlo con:
+> `winget install GnuWin32.Make` (o `choco install make`).
+
+### 3. Acceso a las Aplicaciones
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:4000

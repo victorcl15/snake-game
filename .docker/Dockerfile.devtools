@@ -7,7 +7,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install system dependencies for Playwright
+# Install system dependencies
 RUN apk add --no-cache \
     chromium \
     firefox \
@@ -19,8 +19,8 @@ COPY frontend/package*.json ./frontend/
 COPY backend/package*.json ./backend/
 
 # Install all dependencies (including devDependencies)
-RUN cd frontend && npm ci --frozen-lockfile && \
-    cd ../backend && npm ci --frozen-lockfile && \
+RUN cd frontend && npm ci && \
+    cd ../backend && npm ci && \
     cd ..
 
 # Copy source code

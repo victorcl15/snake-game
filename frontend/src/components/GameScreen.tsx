@@ -1,242 +1,354 @@
-import { useEffect, useRef, useState } from 'react'
-import { useGameStore } from '@/stores/gameStore'
-import { BabylonEngine } from '@/systems/BabylonEngine'
-import { InputController } from '@/systems/InputController'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { Renderer } from '@/engine/Renderer'
+import { SnakeGame } from '@/game/SnakeGame'
+import { Input } from '@/engine/Input'
+import { audio } from '@/engine/Audio'
+import { getLevel, LEVELS } from '@/game/levels'
+import { LevelDef, DeathCause } from '@/game/types'
+import { useProgress } from '@/stores/progressStore'
+import { HUD } from './HUD'
+import { LevelSelectModal } from './LevelSelectModal'
+import { PauseModal } from './PauseModal'
+import { EndModal } from './EndModal'
+import { TouchControls } from './TouchControls'
 import './GameScreen.css'
 
 export default function GameScreen() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const engineRef = useRef<BabylonEngine | null>(null)
-  const inputRef = useRef<InputController | null>(null)
-  const [isEngineReady, setIsEngineReady] = useState(false)
-  const [engineError, setEngineError] = useState<string | null>(null)
-  const [stats, setStats] = useState({ fps: 0 })
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const rendererRef = useRef<Renderer | null>(null)
+  const gameRef = useRef<SnakeGame | null>(null)
+  const inputRef = useRef<Input | null>(null)
 
   const {
-    isRunning,
-    score,
-    level,
-    gameOver,
-    isPaused,
-    startGame,
-    moveSnake,
-    setDirection,
-    togglePause,
-    resetGame,
-    snake,
-    food,
-    foodsEaten,
-  } = useGameStore()
+    unlocked,
+    settings,
+    setSetting,
+    completeLevel,
+    recordEndless,
+    recordGame,
+  } = useProgress()
 
-  // Inicializar engine
+  const [currentLevel, setCurrentLevel] = useState<LevelDef>(() => getLevel(unlocked || 1))
+  const [score, setScore] = useState(0)
+  const [eaten, setEaten] = useState(0)
+  const [combo, setCombo] = useState(1)
+  const [comboRemaining, setComboRemaining] = useState(0)
+  const [effects, setEffects] = useState({ slow: 0, ghost: 0, double: 0 })
+  const [gameStatus, setGameStatus] = useState<'countdown' | 'playing' | 'paused' | 'dead' | 'won'>('countdown')
+  const [countdownNum, setCountdownNum] = useState<number | null>(3)
+  const [deathCause, setDeathCause] = useState<DeathCause | null>(null)
+  const [isNewBest, setIsNewBest] = useState(false)
+  const [bestCombo, setBestCombo] = useState(1)
+  const [isLevelSelectOpen, setIsLevelSelectOpen] = useState(false)
+  const [isEngineReady, setIsEngineReady] = useState(false)
+
+  // Desbloqueo de audio por primer gesto
+  const ensureAudioUnlocked = useCallback(() => {
+    audio.unlock()
+    audio.setSfx(settings.sfx)
+    audio.setMusic(settings.music)
+  }, [settings.sfx, settings.music])
+
+  // Inicializar o reiniciar partida en un nivel
+  const startNewGame = useCallback((level: LevelDef) => {
+    if (!rendererRef.current) return
+    ensureAudioUnlocked()
+    recordGame()
+
+    const newGame = new SnakeGame(level)
+    gameRef.current = newGame
+    setScore(0)
+    setEaten(0)
+    setCombo(1)
+    setComboRemaining(0)
+    setEffects({ slow: 0, ghost: 0, double: 0 })
+    setGameStatus('countdown')
+    setCountdownNum(3)
+    setDeathCause(null)
+    setIsNewBest(false)
+    setBestCombo(1)
+    setIsLevelSelectOpen(false)
+
+    // Configurar eventos del juego
+    newGame.events = {
+      onEat: (food, points, curCombo) => {
+        rendererRef.current?.onEat(food, points, curCombo)
+        if (food.kind === 'golden') audio.golden()
+        else if (food.kind === 'apple') audio.eat(curCombo)
+        else audio.powerUp()
+        audio.setIntensity(Math.min(1, newGame.eaten / (level.goal === Infinity ? 30 : level.goal)))
+      },
+      onTurn: () => {
+        audio.turn()
+      },
+      onGraceSave: () => {
+        rendererRef.current?.onGrace()
+        audio.grace()
+      },
+      onTeleport: (from, to, color) => {
+        rendererRef.current?.onTeleport(from, to, color)
+        audio.teleport()
+      },
+      onCountdown: (n) => {
+        setCountdownNum(n)
+        audio.countdown(n)
+      },
+      onWallsAdded: (cells) => {
+        rendererRef.current?.onWallsAdded(cells)
+        audio.wallSpawn()
+      },
+      onFoodExpired: (f) => {
+        rendererRef.current?.floatText(rendererRef.current.cellToWorld(f), 'EXPIRADO', '#888888')
+        audio.expire()
+      },
+      onDie: (cause) => {
+        setDeathCause(cause)
+        setGameStatus('dead')
+        rendererRef.current?.onDie()
+        audio.die()
+        audio.setIntensity(0)
+
+        const finalScore = newGame.score
+        if (newGame.isEndless) {
+          const res = recordEndless(finalScore)
+          setIsNewBest(res.newBest)
+        }
+      },
+      onWin: () => {
+        setGameStatus('won')
+        rendererRef.current?.onWin()
+        audio.win()
+        audio.setIntensity(0)
+
+        const finalScore = newGame.score
+        const stars = newGame.starsFor(finalScore)
+        const res = completeLevel(level.id, finalScore, stars)
+        setIsNewBest(res.newBest)
+      },
+    }
+
+    rendererRef.current.setGame(newGame, { intro: true })
+    if (settings.music) {
+      audio.startMusic()
+    }
+  }, [ensureAudioUnlocked, recordGame, recordEndless, completeLevel, settings.music])
+
+  // Montar Renderer e Input
   useEffect(() => {
-    if (!canvasRef.current || engineRef.current) return
+    if (!canvasRef.current || !overlayRef.current || !containerRef.current) return
 
-    const initializeEngine = async () => {
-      try {
-        const engine = new BabylonEngine(canvasRef.current!)
-        await engine.initialize()
+    const renderer = new Renderer(canvasRef.current, overlayRef.current)
+    rendererRef.current = renderer
+    renderer.setCameraMode(settings.camera)
 
-        engineRef.current = engine
-        setIsEngineReady(true)
-        console.log('[GameScreen] Babylon.js engine inicializado')
+    // Conectar ciclo por frame para sincronizar UI y ticks
+    renderer.onFrame((dt) => {
+      const g = gameRef.current
+      if (!g) return
 
-        // Crear malla inicial
-        if (snake && snake.length > 0) {
-          engine.createSnakeMesh(snake)
+      g.update(dt)
+
+      // Actualizar estado para React
+      setScore(g.score)
+      setEaten(g.eaten)
+      setCombo(g.combo)
+      setComboRemaining(g.comboRemaining)
+      setEffects({ ...g.effects })
+      setBestCombo(g.bestCombo)
+      setGameStatus(g.status)
+
+      // Polling de gamepad
+      inputRef.current?.pollGamepad()
+    })
+
+    // Configurar Input
+    const input = new Input(containerRef.current, {
+      dir: (d) => {
+        ensureAudioUnlocked()
+        gameRef.current?.queueDir(d)
+      },
+      pause: () => {
+        ensureAudioUnlocked()
+        gameRef.current?.togglePause()
+      },
+      camera: () => {
+        setSetting('camera', renderer.cameraMode === 'tilt' ? 'top' : 'tilt')
+      },
+      restart: () => {
+        startNewGame(currentLevel)
+      },
+      confirm: () => {
+        const g = gameRef.current
+        if (g?.status === 'dead' || g?.status === 'won') {
+          startNewGame(currentLevel)
         }
-        if (food) {
-          engine.createFoodMesh(food)
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Error desconocido'
-        setEngineError(message)
-        console.error('[GameScreen] Error iniciando engine:', message)
-      }
-    }
+      },
+      back: () => {
+        setIsLevelSelectOpen((prev) => !prev)
+      },
+      any: () => {
+        ensureAudioUnlocked()
+      },
+    })
+    inputRef.current = input
 
-    initializeEngine()
+    setIsEngineReady(true)
+    startNewGame(currentLevel)
 
-    // Cleanup
     return () => {
-      if (engineRef.current) {
-        engineRef.current.dispose()
-        engineRef.current = null
-      }
+      input.dispose()
+      renderer.dispose()
+      audio.dispose()
+      rendererRef.current = null
+      gameRef.current = null
+      inputRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Actualizar snake en la escena 3D
+  // Sincronizar ajustes de cámara
   useEffect(() => {
-    if (!engineRef.current || !snake) return
-    engineRef.current.updateSnakeMesh(snake)
-  }, [snake])
-
-  // Actualizar comida en la escena 3D y reproducir efectos
-  useEffect(() => {
-    if (!engineRef.current || !food) return
-    engineRef.current.updateFoodMesh(food)
-  }, [food])
-
-  // Reproducir efectos cuando se come comida
-  const prevFoodsRef = useRef(0)
-  useEffect(() => {
-    if (foodsEaten > prevFoodsRef.current && engineRef.current && food) {
-      engineRef.current.playFoodEatenEffect(food).catch(() => {})
-      engineRef.current.playScoreEffect()
-      prevFoodsRef.current = foodsEaten
+    if (rendererRef.current) {
+      rendererRef.current.setCameraMode(settings.camera)
     }
-  }, [foodsEaten, food])
+  }, [settings.camera])
 
-  // Manejar pausa/reanudación
+  // Sincronizar música
   useEffect(() => {
-    if (!engineRef.current) return
-
-    if (gameOver) {
-      engineRef.current.pauseRendering()
-      engineRef.current.playGameOverEffect()
-    } else if (!isRunning) {
-      engineRef.current.pauseRendering()
-    } else {
-      engineRef.current.resumeRendering()
+    audio.setMusic(settings.music)
+    if (settings.music && gameStatus === 'playing') {
+      audio.startMusic()
+    } else if (!settings.music) {
+      audio.stopMusic()
     }
-  }, [isRunning, gameOver])
+  }, [settings.music, gameStatus])
 
-  // Configurar input controller
+  // Sincronizar SFX
   useEffect(() => {
-    if (!isEngineReady) return
+    audio.setSfx(settings.sfx)
+  }, [settings.sfx])
 
-    if (!inputRef.current) {
-      inputRef.current = new InputController()
+  const handleSelectLevel = (newLevel: LevelDef) => {
+    setCurrentLevel(newLevel)
+    startNewGame(newLevel)
+  }
 
-      // Configurar callbacks
-      inputRef.current.onDirection((direction) => {
-        setDirection(direction)
-      })
-
-      inputRef.current.onCameraRotationChange((angle) => {
-        engineRef.current?.rotateCameraAround(angle)
-      })
-
-      inputRef.current.onZoomChange((factor) => {
-        engineRef.current?.setCameraZoom(factor)
-      })
-
-      inputRef.current.onPauseToggle(() => {
-        if (isRunning && !gameOver) {
-          togglePause()
-        }
-      })
+  const handleNextLevel = () => {
+    const next = LEVELS.find((l) => l.id === currentLevel.id + 1)
+    if (next) {
+      setCurrentLevel(next)
+      startNewGame(next)
     }
-
-    return () => {
-      // No disponer aquí porque los listeners globales deben continuar
-    }
-  }, [isEngineReady, setDirection, togglePause, isRunning, gameOver])
-
-  // Game loop - mover serpiente
-  useEffect(() => {
-    if (!isRunning || isPaused || gameOver) return
-
-    const interval = setInterval(() => {
-      moveSnake()
-    }, 100)
-
-    return () => clearInterval(interval)
-  }, [isRunning, isPaused, gameOver, moveSnake])
-
-  // Actualizar stats
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (engineRef.current && isEngineReady) {
-        const state = engineRef.current.getRenderState()
-        setStats({ fps: state.fps })
-      }
-    }, 500)
-
-    return () => clearInterval(interval)
-  }, [isEngineReady])
-
-  if (engineError) {
-    return (
-      <div className="game-screen error">
-        <div className="error-message">
-          <h2>Error al inicializar Babylon.js</h2>
-          <p>{engineError}</p>
-          <button onClick={() => window.location.reload()}>Recargar</button>
-        </div>
-      </div>
-    )
   }
 
   return (
-    <div className="game-screen">
-      <canvas
-        ref={canvasRef}
-        className="game-canvas"
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'block',
+    <div className="game-wrapper" ref={containerRef} tabIndex={0}>
+      <canvas ref={canvasRef} className="babylon-canvas" />
+      <div ref={overlayRef} className="floating-text-container" />
+
+      {/* Pantalla de carga mientras se prepara Babylon */}
+      {!isEngineReady && (
+        <div className="loading-overlay">
+          <div className="cyber-spinner" />
+          <p>Iniciando Motor 3D Babylon.js...</p>
+        </div>
+      )}
+
+      {/* HUD principal superior */}
+      <HUD
+        level={currentLevel}
+        score={score}
+        eaten={eaten}
+        combo={combo}
+        comboRemaining={comboRemaining}
+        effects={effects}
+        isPaused={gameStatus === 'paused'}
+        cameraMode={settings.camera}
+        soundOn={settings.sfx}
+        musicOn={settings.music}
+        showDpad={settings.dpad}
+        onTogglePause={() => {
+          ensureAudioUnlocked()
+          gameRef.current?.togglePause()
+        }}
+        onToggleCamera={() => {
+          setSetting('camera', settings.camera === 'tilt' ? 'top' : 'tilt')
+        }}
+        onToggleSound={() => {
+          setSetting('sfx', !settings.sfx)
+        }}
+        onToggleMusic={() => {
+          setSetting('music', !settings.music)
+        }}
+        onToggleDpad={() => {
+          setSetting('dpad', !settings.dpad)
+        }}
+        onOpenLevelSelect={() => {
+          ensureAudioUnlocked()
+          setIsLevelSelectOpen(true)
         }}
       />
 
-      {!isEngineReady && (
-        <div className="loading-overlay">
-          <div className="loader"></div>
-          <p>Inicializando Babylon.js 3D Engine...</p>
+      {/* Cuenta regresiva antes de arrancar */}
+      {gameStatus === 'countdown' && countdownNum !== null && (
+        <div className="countdown-overlay">
+          <span className="countdown-number" key={countdownNum}>
+            {countdownNum > 0 ? countdownNum : '¡YA!'}
+          </span>
         </div>
       )}
 
-      <div className="hud">
-        <div className="stat-box">
-          <span className="stat-label">SCORE</span>
-          <span className="stat-value">{score.toString().padStart(6, '0')}</span>
-        </div>
-        <div className="stat-box">
-          <span className="stat-label">LEVEL</span>
-          <span className="stat-value">{level}</span>
-        </div>
-      </div>
-
-      {isRunning && (
-        <div className="game-info">
-          <span className="fps-counter">FPS: {stats.fps}</span>
-          {isPaused && <span className="pause-indicator">PAUSED</span>}
-        </div>
+      {/* Controles táctiles / D-pad virtual */}
+      {settings.dpad && (
+        <TouchControls
+          onDir={(d) => {
+            ensureAudioUnlocked()
+            gameRef.current?.queueDir(d)
+          }}
+          onPause={() => {
+            ensureAudioUnlocked()
+            gameRef.current?.togglePause()
+          }}
+        />
       )}
 
-      {!isRunning && isEngineReady && (
-        <div className="menu-overlay">
-          <div className="menu-content">
-            <h1>Snake Game 3D</h1>
-            <p className="subtitle">Babylon.js Edition</p>
-            <button className="start-btn" onClick={() => startGame()}>
-              {gameOver ? 'RESTART GAME' : 'START GAME'}
-            </button>
-            <div className="controls-info">
-              <p>Controls:</p>
-              <ul>
-                <li>WASD or Arrow Keys - Move Snake</li>
-                <li>Mouse Drag - Rotate Camera</li>
-                <li>Mouse Wheel - Zoom Camera</li>
-                <li>SPACE or P - Pause Game</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+      {/* Modal de Pausa */}
+      {gameStatus === 'paused' && !isLevelSelectOpen && (
+        <PauseModal
+          level={currentLevel}
+          onResume={() => gameRef.current?.togglePause()}
+          onRestart={() => startNewGame(currentLevel)}
+          onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
+        />
       )}
 
-      {gameOver && !isPaused && (
-        <div className="gameover-overlay">
-          <div className="gameover-content">
-            <h2>GAME OVER</h2>
-            <p className="final-score">Final Score: {score}</p>
-            <button className="restart-btn" onClick={() => resetGame()}>
-              PLAY AGAIN
-            </button>
-          </div>
-        </div>
+      {/* Modal de Fin de Partida (Muerte o Victoria) */}
+      {(gameStatus === 'dead' || gameStatus === 'won') && !isLevelSelectOpen && (
+        <EndModal
+          status={gameStatus}
+          level={currentLevel}
+          score={score}
+          eaten={eaten}
+          bestCombo={bestCombo}
+          starsEarned={gameRef.current ? gameRef.current.starsFor(score) : 0}
+          isNewBest={isNewBest}
+          deathCause={deathCause}
+          onRestart={() => startNewGame(currentLevel)}
+          onNextLevel={handleNextLevel}
+          onOpenLevelSelect={() => setIsLevelSelectOpen(true)}
+        />
+      )}
+
+      {/* Modal de Selección de Nivel */}
+      {isLevelSelectOpen && (
+        <LevelSelectModal
+          currentLevelId={currentLevel.id}
+          onSelectLevel={handleSelectLevel}
+          onClose={() => setIsLevelSelectOpen(false)}
+        />
       )}
     </div>
   )

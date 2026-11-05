@@ -26,11 +26,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          babylon: ['@babylonjs/core', '@babylonjs/inspector'],
-          cannon: ['cannon'],
-          tone: ['tone'],
+          babylon: ['@babylonjs/core'],
           react: ['react', 'react-dom'],
-          socket: ['socket.io-client'],
           state: ['zustand'],
         },
       },
@@ -48,7 +45,7 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    include: ['@babylonjs/core', '@babylonjs/inspector', 'cannon', 'tone', 'zustand', 'socket.io-client'],
+    include: ['@babylonjs/core', 'zustand'],
   },
 
   define: {

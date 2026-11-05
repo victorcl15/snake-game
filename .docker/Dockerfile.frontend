@@ -11,19 +11,16 @@ WORKDIR /app
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies with npm ci (reproducible)
-RUN npm ci --frozen-lockfile
+# Install dependencies with npm ci
+RUN npm ci
 
-# Copy source code
+# Copy source code and config
 COPY frontend/src ./src
 COPY frontend/public ./public
 COPY frontend/vite.config.ts ./
 COPY frontend/tsconfig.json ./
 COPY frontend/tsconfig.app.json ./
 COPY frontend/index.html ./
-
-# Clean up any stale .d.ts files
-RUN find ./src -name "*.d.ts" -delete 2>/dev/null || true
 
 # Build frontend (optimized for production)
 RUN npm run build
@@ -33,7 +30,7 @@ RUN npm run build
 # ============================================================
 FROM alpine:latest
 
-# Install nginx only (no complex entrypoint)
+# Install nginx
 RUN apk add --no-cache nginx
 
 # Copy nginx configuration (frontend-specific)
@@ -43,12 +40,9 @@ COPY nginx/nginx-frontend.conf /etc/nginx/nginx.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Make sure directories have proper permissions
-RUN mkdir -p /var/cache/nginx /var/log/nginx && \
+RUN mkdir -p /var/cache/nginx /var/log/nginx /var/run/nginx && \
     chmod -R 755 /var/cache/nginx /var/log/nginx && \
-    chown -R root:root /usr/share/nginx/html
-
-# Create entrypoint
-RUN mkdir -p /var/run/nginx
+    chown -R nginx:nginx /usr/share/nginx/html
 
 # Expose port (mapped from 80 internally to 3000 externally)
 EXPOSE 80
